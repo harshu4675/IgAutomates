@@ -11,6 +11,9 @@ import {
 import { successResponse, errorResponse } from "../utils/apiResponse.js";
 import env from "../config/env.js";
 import logger from "../utils/logger.js";
+import axios from "axios";
+
+const GRAPH_API = "https://graph.facebook.com/v21.0";
 
 export const getAuthUrl = async (req, res, next) => {
   try {
@@ -25,36 +28,114 @@ export const handleCallback = async (req, res, next) => {
   try {
     const { code, state } = req.query;
 
+    logger.info(
+      `OAuth callback received. Code: ${code ? "YES" : "NO"}, State: ${state}`,
+    );
+
     if (!code) {
+      logger.warn("No code in callback");
       return res.redirect(`${env.CLIENT_URL}/dashboard?ig_error=no_code`);
     }
 
     if (!state) {
+      logger.warn("No state in callback");
       return res.redirect(`${env.CLIENT_URL}/dashboard?ig_error=no_user`);
     }
 
     const userId = state;
 
+    logger.info("Exchanging code for token...");
     const tokenData = await exchangeCodeForToken(code);
+    logger.info("Token received");
+
+    logger.info("Getting long-lived token...");
     const longLivedData = await getLongLivedToken(tokenData.access_token);
-    const pages = await getUserPages(longLivedData.access_token);
+    logger.info("Long-lived token received");
+
+    logger.info("Fetching user pages...");
+    let pages = [];
+    try {
+      pages = await getUserPages(longLivedData.access_token);
+      logger.info(`Found ${pages.length} pages via /me/accounts`);
+    } catch (err) {
+      logger.error(
+        "Error fetching pages via /me/accounts",
+        err.response?.data || err.message,
+      );
+    }
 
     if (!pages || pages.length === 0) {
+      logger.warn("No pages found, trying alternative method...");
+
+      try {
+        const meResponse = await axios.get(`${GRAPH_API}/me`, {
+          params: {
+            access_token: longLivedData.access_token,
+            fields:
+              "id,name,accounts{id,name,access_token,instagram_business_account}",
+          },
+        });
+
+        logger.info(
+          "Alternative /me response:",
+          JSON.stringify(meResponse.data).substring(0, 500),
+        );
+
+        if (meResponse.data.accounts?.data?.length > 0) {
+          pages = meResponse.data.accounts.data;
+          logger.info(`Found ${pages.length} pages via /me?fields=accounts`);
+        }
+      } catch (err) {
+        logger.error(
+          "Alternative method also failed",
+          err.response?.data || err.message,
+        );
+      }
+    }
+
+    if (!pages || pages.length === 0) {
+      logger.warn("Still no pages found - checking permissions granted");
+
+      try {
+        const permsResponse = await axios.get(`${GRAPH_API}/me/permissions`, {
+          params: { access_token: longLivedData.access_token },
+        });
+        logger.info("Granted permissions:", JSON.stringify(permsResponse.data));
+      } catch (err) {
+        logger.error("Failed to check permissions");
+      }
+
       return res.redirect(`${env.CLIENT_URL}/dashboard?ig_error=no_pages`);
     }
+
+    logger.info(`Total pages found: ${pages.length}`);
+    pages.forEach((p, i) => {
+      logger.info(
+        `Page ${i + 1}: ${p.name} (ID: ${p.id}), Has IG: ${!!p.instagram_business_account}`,
+      );
+    });
 
     const pageWithIG = pages.find((p) => p.instagram_business_account);
 
     if (!pageWithIG) {
+      logger.warn("No page with Instagram Business account found");
       return res.redirect(
         `${env.CLIENT_URL}/dashboard?ig_error=no_business_account`,
       );
     }
 
+    logger.info(
+      `Selected page: ${pageWithIG.name} with IG: ${pageWithIG.instagram_business_account.id}`,
+    );
+
     const igAccountId = pageWithIG.instagram_business_account.id;
     const igData = await getInstagramAccount(
       igAccountId,
       pageWithIG.access_token,
+    );
+
+    logger.info(
+      `Instagram data: @${igData.username}, followers: ${igData.followers_count}`,
     );
 
     let account = await InstagramAccount.findOne({
@@ -75,6 +156,7 @@ export const handleCallback = async (req, res, next) => {
       account.tokenExpiry = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
       account.lastSynced = new Date();
       await account.save();
+      logger.info("Existing account updated");
     } else {
       account = await InstagramAccount.create({
         user: userId,
@@ -89,23 +171,31 @@ export const handleCallback = async (req, res, next) => {
         followersCount: igData.followers_count || 0,
         mediaCount: igData.media_count || 0,
       });
+      logger.info("New account created");
     }
 
     try {
       await subscribeWebhook(pageWithIG.id, pageWithIG.access_token);
       account.webhookSubscribed = true;
       await account.save();
+      logger.info("Webhook subscribed");
     } catch (err) {
       logger.warn(
-        `Webhook subscription failed for ${igData.username}, but account connected`,
+        `Webhook subscription failed but account connected: ${err.message}`,
       );
     }
 
-    logger.info(`Instagram connected: @${igData.username} for user ${userId}`);
+    logger.info(
+      `Instagram connected successfully: @${igData.username} for user ${userId}`,
+    );
 
     return res.redirect(`${env.CLIENT_URL}/dashboard?ig_connected=true`);
   } catch (error) {
-    logger.error("Instagram callback error", error);
+    logger.error(
+      "Instagram callback error - FULL:",
+      error.response?.data || error.message,
+    );
+    logger.error("Stack:", error.stack);
     return res.redirect(
       `${env.CLIENT_URL}/dashboard?ig_error=connection_failed`,
     );
