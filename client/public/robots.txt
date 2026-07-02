@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /campaigns
+Disallow: /analytics
+Disallow: /keywords
+Disallow: /messages
+Disallow: /settings
+Disallow: /api/
+
+Sitemap: https://your-app.netlify.app/sitemap.xml

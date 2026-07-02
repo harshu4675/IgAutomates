@@ -1,0 +1,247 @@
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  HiOutlineXMark,
+  HiOutlineArrowLeft,
+  HiOutlineArrowRight,
+  HiOutlineCheck,
+} from "react-icons/hi2";
+import AccountSelector from "./AccountSelector";
+import PostSelector from "./PostSelector";
+import AutomationSetup from "./AutomationSetup";
+import Button from "@/components/common/Button";
+import { useInstagramAccounts } from "@/hooks/useInstagram";
+import { useCreateCampaign } from "@/hooks/useCampaigns";
+
+const steps = [
+  { id: 1, label: "Account" },
+  { id: 2, label: "Post" },
+  { id: 3, label: "Setup" },
+];
+
+export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [serverError, setServerError] = useState("");
+
+  const { data: accounts } = useInstagramAccounts();
+  const createMutation = useCreateCampaign();
+
+  useEffect(() => {
+    if (isOpen) {
+      if (defaultAccountId) {
+        setSelectedAccountId(defaultAccountId);
+        setCurrentStep(2);
+      } else if (accounts?.length === 1) {
+        setSelectedAccountId(accounts[0]._id);
+        setCurrentStep(2);
+      }
+    } else {
+      setCurrentStep(1);
+      setSelectedAccountId(null);
+      setSelectedPost(null);
+      setServerError("");
+    }
+  }, [isOpen, defaultAccountId, accounts]);
+
+  const canGoNext = () => {
+    if (currentStep === 1) return !!selectedAccountId;
+    if (currentStep === 2) return !!selectedPost;
+    return false;
+  };
+
+  const handleNext = () => {
+    if (canGoNext() && currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleCreate = async (formData) => {
+    setServerError("");
+    try {
+      await createMutation.mutateAsync({
+        instagramAccount: selectedAccountId,
+        name: formData.name,
+        igPostId: selectedPost.id,
+        igPostUrl: selectedPost.permalink || "",
+        igPostThumbnail:
+          selectedPost.thumbnail_url || selectedPost.media_url || "",
+        igPostCaption: selectedPost.caption || "",
+        igPostType: selectedPost.media_type || "IMAGE",
+        keyword: formData.keyword,
+        matchType: formData.matchType,
+        dmMessage: formData.dmMessage,
+        dmLink: formData.dmLink || "",
+      });
+      onClose();
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Failed to create campaign";
+      setServerError(message);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-primary-darkest/60 backdrop-blur-sm z-[100] flex items-start justify-center overflow-y-auto p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.98 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="relative w-full max-w-5xl bg-white rounded-3xl shadow-glass-xl my-8"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-xl border-b border-border-light rounded-t-3xl px-6 py-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-manrope font-bold text-primary-darkest">
+                Create Campaign
+              </h2>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-surface-cream transition-colors"
+                aria-label="Close"
+              >
+                <HiOutlineXMark className="w-5 h-5 text-text-muted" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {steps.map((step, i) => (
+                <div key={step.id} className="flex items-center flex-1">
+                  <div
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                      currentStep === step.id
+                        ? "bg-primary-darkest text-white"
+                        : currentStep > step.id
+                          ? "bg-primary-lightest/50 text-primary-dark"
+                          : "bg-surface-cream text-text-muted"
+                    }`}
+                  >
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-white/20">
+                      {currentStep > step.id ? (
+                        <HiOutlineCheck className="w-3 h-3" />
+                      ) : (
+                        step.id
+                      )}
+                    </span>
+                    <span className="text-xs font-jakarta font-semibold hidden sm:inline">
+                      {step.label}
+                    </span>
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div
+                      className={`flex-1 h-px mx-2 ${
+                        currentStep > step.id
+                          ? "bg-primary-dark"
+                          : "bg-border-light"
+                      }`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-6">
+            {serverError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200"
+              >
+                <p className="text-sm text-red-600 font-jakarta">
+                  {serverError}
+                </p>
+              </motion.div>
+            )}
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStep}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                {currentStep === 1 && (
+                  <AccountSelector
+                    accounts={accounts || []}
+                    selectedId={selectedAccountId}
+                    onSelect={setSelectedAccountId}
+                  />
+                )}
+
+                {currentStep === 2 && selectedAccountId && (
+                  <PostSelector
+                    accountId={selectedAccountId}
+                    selectedPost={selectedPost}
+                    onSelect={setSelectedPost}
+                  />
+                )}
+
+                {currentStep === 3 && selectedPost && (
+                  <AutomationSetup
+                    post={selectedPost}
+                    onSubmit={handleCreate}
+                    isSubmitting={createMutation.isPending}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-xl border-t border-border-light rounded-b-3xl px-6 py-4 flex items-center justify-between">
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={currentStep === 1 ? onClose : handleBack}
+              icon={<HiOutlineArrowLeft />}
+              iconPosition="left"
+            >
+              {currentStep === 1 ? "Cancel" : "Back"}
+            </Button>
+
+            {currentStep < 3 ? (
+              <Button
+                variant="primary"
+                size="small"
+                onClick={handleNext}
+                disabled={!canGoNext()}
+                icon={<HiOutlineArrowRight />}
+              >
+                Continue
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                form="campaign-form"
+                variant="primary"
+                size="small"
+                loading={createMutation.isPending}
+                icon={<HiOutlineCheck />}
+              >
+                Create Campaign
+              </Button>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
