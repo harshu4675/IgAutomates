@@ -6,19 +6,32 @@ import env from "../config/env.js";
 import logger from "../utils/logger.js";
 
 export const verifyWebhook = (req, res) => {
+  console.log("=== WEBHOOK REQUEST DEBUG ===");
+  console.log("Full URL:", req.originalUrl);
+  console.log("Query object:", JSON.stringify(req.query));
+  console.log("Query keys:", Object.keys(req.query));
+  console.log("Headers:", JSON.stringify(req.headers));
+  console.log("===========================");
+
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  logger.info(`Webhook verification: mode=${mode}, token=${token}`);
+  logger.info(
+    `Webhook verification attempt - Mode: ${mode}, Token: ${token}, Challenge: ${challenge}`,
+  );
+  logger.info(`Expected token: ${env.IG_VERIFY_TOKEN}`);
+  logger.info(`Token match: ${token === env.IG_VERIFY_TOKEN}`);
 
   if (mode === "subscribe" && token === env.IG_VERIFY_TOKEN) {
-    logger.info("Webhook verified successfully");
+    logger.info("Webhook verified successfully - sending challenge");
     return res.status(200).send(challenge);
   }
 
-  logger.warn("Webhook verification failed");
-  return res.sendStatus(403);
+  logger.warn(
+    `Webhook verification failed - Mode: ${mode}, Token match: ${token === env.IG_VERIFY_TOKEN}`,
+  );
+  return res.status(403).send("Forbidden");
 };
 
 export const handleWebhook = async (req, res) => {
@@ -26,6 +39,10 @@ export const handleWebhook = async (req, res) => {
 
   try {
     const body = req.body;
+    logger.info(
+      "Webhook POST received:",
+      JSON.stringify(body).substring(0, 500),
+    );
 
     if (body.object !== "instagram") {
       logger.warn(`Received non-instagram webhook: ${body.object}`);
