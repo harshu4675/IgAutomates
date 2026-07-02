@@ -32,31 +32,12 @@ app.use(
   }),
 );
 
-const allowedOrigins = [
-  env.CLIENT_URL,
-  "http://localhost:3000",
-  "http://localhost:5173",
-].filter(Boolean);
-
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      const isAllowed = allowedOrigins.some(
-        (allowed) => origin === allowed || origin.startsWith(allowed),
-      );
-
-      if (isAllowed || env.NODE_ENV === "development") {
-        return callback(null, true);
-      }
-
-      callback(null, true);
-    },
+    origin: "*",
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    maxAge: 86400,
   }),
 );
 
@@ -77,13 +58,6 @@ if (env.NODE_ENV === "development") {
 
 app.use("/api/webhook", webhookRoutes);
 
-app.use("/api", generalLimiter);
-
-app.use("/api/auth", authRoutes);
-app.use("/api/instagram", instagramRoutes);
-app.use("/api/campaigns", campaignRoutes);
-app.use("/api/analytics", analyticsRoutes);
-
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -101,6 +75,13 @@ app.get("/", (req, res) => {
     docs: "/api/health",
   });
 });
+
+app.use("/api", generalLimiter);
+
+app.use("/api/auth", authRoutes);
+app.use("/api/instagram", instagramRoutes);
+app.use("/api/campaigns", campaignRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.use("/api/*", (req, res) => {
   res.status(404).json({
