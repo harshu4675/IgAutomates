@@ -329,3 +329,36 @@ export const debugToken = async (req, res, next) => {
     next(error);
   }
 };
+export const updateIgUserId = async (req, res, next) => {
+  try {
+    const { accountId, newIgUserId } = req.body;
+
+    if (!accountId || !newIgUserId) {
+      return errorResponse(res, 400, "accountId and newIgUserId are required");
+    }
+
+    const account = await InstagramAccount.findOne({
+      _id: accountId,
+      user: req.user._id,
+    });
+
+    if (!account) {
+      return errorResponse(res, 404, "Instagram account not found");
+    }
+
+    const oldId = account.igUserId;
+    account.igUserId = newIgUserId;
+    await account.save();
+
+    logger.info(
+      `IG User ID updated for @${account.igUsername}: ${oldId} → ${newIgUserId}`,
+    );
+
+    return successResponse(res, 200, "Instagram User ID updated", {
+      oldId,
+      newId: newIgUserId,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
