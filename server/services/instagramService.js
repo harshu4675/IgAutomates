@@ -108,16 +108,25 @@ export const sendInstagramDM = async (
   recipientId,
   message,
   pageAccessToken,
+  commentId = null,
 ) => {
   try {
     logger.info(
-      `Attempting to send DM: igUser=${igUserId}, recipient=${recipientId}`,
+      `Attempting to send DM: igUser=${igUserId}, recipient=${recipientId}, commentId=${commentId}`,
     );
+
+    // If commentId provided, use Private Reply (comment_id)
+    // Otherwise fall back to regular DM (id) - only works in 24hr window
+    const recipient = commentId
+      ? { comment_id: commentId }
+      : { id: recipientId };
+
+    logger.info(`Using recipient format: ${JSON.stringify(recipient)}`);
 
     const response = await axios.post(
       `${GRAPH_API}/${igUserId}/messages`,
       {
-        recipient: { id: recipientId },
+        recipient,
         message: { text: message },
       },
       {
@@ -146,6 +155,9 @@ export const sendInstagramDM = async (
     logger.error(
       `DM send failed: ${errorMessage} (code: ${errorCode}, subcode: ${errorSubcode})`,
     );
+    logger.error(
+      `Full error response: ${JSON.stringify(error.response?.data || {}).substring(0, 500)}`,
+    );
 
     return {
       success: false,
@@ -155,7 +167,6 @@ export const sendInstagramDM = async (
     };
   }
 };
-
 export const subscribeWebhook = async (pageId, pageAccessToken) => {
   try {
     const response = await axios.post(
@@ -178,7 +189,6 @@ export const subscribeWebhook = async (pageId, pageAccessToken) => {
   }
 };
 
-// NEW: Subscribe Instagram account to comment webhooks
 export const subscribeInstagramWebhook = async (
   igAccountId,
   pageAccessToken,

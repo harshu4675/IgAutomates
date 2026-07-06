@@ -231,6 +231,7 @@ async function processCampaignMatch({
         commenterId,
         dmContent,
         account.pageAccessToken,
+        commentId,
       );
     }
 
