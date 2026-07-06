@@ -300,4 +300,58 @@ export const saveInstagramUserToken = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+  export const debugToken = async (req, res, next) => {
+    try {
+      const account = await InstagramAccount.findOne({
+        user: req.user._id,
+      }).select("+instagramUserToken +pageAccessToken +accessToken");
+
+      if (!account) {
+        return errorResponse(res, 404, "Account not found");
+      }
+
+      const igToken = account.instagramUserToken || "";
+      const pageToken = account.pageAccessToken || "";
+
+      return successResponse(res, 200, "Debug info", {
+        hasInstagramToken: !!igToken,
+        instagramTokenLength: igToken.length,
+        instagramTokenStart: igToken.substring(0, 10),
+        instagramTokenEnd: igToken.substring(igToken.length - 10),
+        hasSpaces: igToken.includes(" "),
+        hasNewlines: igToken.includes("\n"),
+        pageTokenLength: pageToken.length,
+        pageTokenStart: pageToken.substring(0, 10),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+export const debugToken = async (req, res, next) => {
+  try {
+    const account = await InstagramAccount.findOne({
+      user: req.user._id,
+    }).select("+instagramUserToken +pageAccessToken +accessToken");
+
+    if (!account) {
+      return errorResponse(res, 404, "Account not found");
+    }
+
+    const igToken = account.instagramUserToken || "";
+    const pageToken = account.pageAccessToken || "";
+
+    return successResponse(res, 200, "Debug info", {
+      hasInstagramToken: !!igToken,
+      instagramTokenLength: igToken.length,
+      instagramTokenStart: igToken.substring(0, 10),
+      instagramTokenEnd: igToken.substring(igToken.length - 10),
+      hasSpaces: igToken.includes(" "),
+      hasNewlines: igToken.includes("\n"),
+      pageTokenLength: pageToken.length,
+      pageTokenStart: pageToken.substring(0, 10),
+    });
+  } catch (error) {
+    next(error);
+  }
 };

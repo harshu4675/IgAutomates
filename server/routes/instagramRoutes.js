@@ -6,6 +6,7 @@ import {
   disconnectAccount,
   fetchPosts,
   saveInstagramUserToken,
+  debugToken,
 } from "../controllers/instagramController.js";
 import { protect } from "../middleware/auth.js";
 
@@ -17,5 +18,6 @@ router.get("/accounts", protect, getConnectedAccounts);
 router.delete("/accounts/:id", protect, disconnectAccount);
 router.get("/accounts/:accountId/posts", protect, fetchPosts);
 router.post("/save-token", protect, saveInstagramUserToken);
+router.get("/debug-token", protect, debugToken);
 
 export default router;
