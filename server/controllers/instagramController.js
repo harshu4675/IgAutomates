@@ -236,6 +236,7 @@ export const disconnectAccount = async (req, res, next) => {
     account.isConnected = false;
     account.accessToken = "";
     account.pageAccessToken = "";
+    account.instagramUserToken = "";
     await account.save();
 
     return successResponse(res, 200, "Account disconnected");
@@ -270,5 +271,33 @@ export const fetchPosts = async (req, res, next) => {
     const errorMsg = error.response?.data?.error?.message || error.message;
     logger.error(`Fetch posts error: ${errorMsg}`);
     return errorResponse(res, 500, `Failed to fetch posts: ${errorMsg}`);
+  }
+};
+
+export const saveInstagramUserToken = async (req, res, next) => {
+  try {
+    const { accountId, token } = req.body;
+
+    if (!accountId || !token) {
+      return errorResponse(res, 400, "accountId and token are required");
+    }
+
+    const account = await InstagramAccount.findOne({
+      _id: accountId,
+      user: req.user._id,
+    });
+
+    if (!account) {
+      return errorResponse(res, 404, "Instagram account not found");
+    }
+
+    account.instagramUserToken = token;
+    await account.save();
+
+    logger.info(`Instagram User Token saved for @${account.igUsername}`);
+
+    return successResponse(res, 200, "Instagram User Token saved successfully");
+  } catch (error) {
+    next(error);
   }
 };

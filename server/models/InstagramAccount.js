@@ -44,6 +44,11 @@ const instagramAccountSchema = new mongoose.Schema(
       required: true,
       select: false,
     },
+    instagramUserToken: {
+      type: String,
+      select: false,
+      default: "",
+    },
     followersCount: {
       type: Number,
       default: 0,

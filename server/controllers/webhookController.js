@@ -34,7 +34,6 @@ export const verifyWebhook = (req, res) => {
   return res.status(403).send("Forbidden");
 };
 
-// Original handleWebhook - kept for backward compatibility with webhookRoutes.js
 export const handleWebhook = async (req, res) => {
   res.status(200).send("EVENT_RECEIVED");
   processWebhookEvent(req.body).catch((err) => {
@@ -42,7 +41,6 @@ export const handleWebhook = async (req, res) => {
   });
 };
 
-// New function that ONLY processes - does NOT send response
 export const processWebhookEvent = async (body) => {
   try {
     logger.info(
@@ -58,14 +56,12 @@ export const processWebhookEvent = async (body) => {
     for (const entry of body.entry || []) {
       const igAccountId = entry.id;
 
-      // Handle "changes" array (comments come here)
       for (const change of entry.changes || []) {
         if (change.field === "comments") {
           await processCommentEvent(igAccountId, change.value);
         }
       }
 
-      // Handle "messaging" array (some webhooks use this format)
       for (const messagingEvent of entry.messaging || []) {
         logger.info(
           "Messaging event received:",
@@ -103,7 +99,7 @@ async function processCommentEvent(igAccountId, commentData) {
     const account = await InstagramAccount.findOne({
       igUserId: igAccountId,
       isConnected: true,
-    }).select("+accessToken +pageAccessToken");
+    }).select("+accessToken +pageAccessToken +instagramUserToken");
 
     if (!account) {
       logger.warn(`No connected account found for IG ID: ${igAccountId}`);
@@ -214,7 +210,6 @@ async function processCampaignMatch({
       dmContent += `\n\n${campaign.dmLink}`;
     }
 
-    // In TEST mode, simulate success without calling Instagram API
     let dmResult;
     if (isTest) {
       dmResult = {
@@ -226,11 +221,13 @@ async function processCampaignMatch({
         `[TEST MODE] Simulated DM to @${commenterUsername}: ${dmContent.substring(0, 100)}`,
       );
     } else {
+      const tokenToUse = account.instagramUserToken || account.pageAccessToken;
+
       dmResult = await sendInstagramDM(
         account.igUserId,
         commenterId,
         dmContent,
-        account.pageAccessToken,
+        tokenToUse,
         commentId,
       );
     }
@@ -328,12 +325,11 @@ export const testWebhook = async (req, res) => {
 
     const account = await InstagramAccount.findById(
       campaign.instagramAccount._id,
-    ).select("+accessToken +pageAccessToken");
+    ).select("+accessToken +pageAccessToken +instagramUserToken");
 
     const testCommentId = `test_${Date.now()}`;
     const testUserId = `test_user_${Date.now()}`;
 
-    // Pass isTest: true to simulate DM without hitting Instagram API
     await processCampaignMatch({
       campaign,
       account,
@@ -347,7 +343,7 @@ export const testWebhook = async (req, res) => {
     return res.status(200).json({
       success: true,
       message:
-        "Test comment processed successfully. Check analytics for results. (Note: In test mode, no real DM is sent)",
+        "Test comment processed successfully. Check analytics for results.",
     });
   } catch (error) {
     logger.error("Test webhook error", error);
