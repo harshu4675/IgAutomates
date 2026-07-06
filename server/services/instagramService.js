@@ -6,12 +6,14 @@ const GRAPH_API = "https://graph.facebook.com/v21.0";
 
 export const getLoginUrl = (userId) => {
   const scopes = [
-    "instagram_basic",
-    "instagram_manage_messages",
-    "instagram_manage_comments",
+    "instagram_business_basic",
+    "instagram_business_manage_messages",
+    "instagram_business_manage_comments",
+    "instagram_business_content_publish",
+    "business_management",
     "pages_show_list",
-    "pages_manage_metadata",
     "pages_read_engagement",
+    "pages_manage_metadata",
     "pages_messaging",
   ].join(",");
 
@@ -25,7 +27,6 @@ export const getLoginUrl = (userId) => {
 
   return `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
 };
-
 export const exchangeCodeForToken = async (code) => {
   const response = await axios.get(`${GRAPH_API}/oauth/access_token`, {
     params: {
