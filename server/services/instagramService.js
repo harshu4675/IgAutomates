@@ -3,6 +3,7 @@ import env from "../config/env.js";
 import logger from "../utils/logger.js";
 
 const GRAPH_API = "https://graph.facebook.com/v21.0";
+const INSTAGRAM_API = "https://graph.instagram.com/v21.0";
 
 export const getLoginUrl = (userId) => {
   const scopes = [
@@ -24,6 +25,7 @@ export const getLoginUrl = (userId) => {
 
   return `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
 };
+
 export const exchangeCodeForToken = async (code) => {
   const response = await axios.get(`${GRAPH_API}/oauth/access_token`, {
     params: {
@@ -107,7 +109,7 @@ export const sendInstagramDM = async (
   igUserId,
   recipientId,
   message,
-  pageAccessToken,
+  accessToken,
   commentId = null,
 ) => {
   try {
@@ -121,16 +123,14 @@ export const sendInstagramDM = async (
 
     logger.info(`Using recipient format: ${JSON.stringify(recipient)}`);
 
-    const INSTAGRAM_API = "https://graph.instagram.com/v21.0";
-
     const response = await axios.post(
-      `${INSTAGRAM_API}/${igUserId}/messages`,
+      `${INSTAGRAM_API}/me/messages`,
       {
         recipient,
         message: { text: message },
       },
       {
-        params: { access_token: pageAccessToken },
+        params: { access_token: accessToken },
         headers: { "Content-Type": "application/json" },
       },
     );
@@ -167,6 +167,7 @@ export const sendInstagramDM = async (
     };
   }
 };
+
 export const subscribeWebhook = async (pageId, pageAccessToken) => {
   try {
     const response = await axios.post(

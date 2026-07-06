@@ -95,9 +95,8 @@ async function processCommentEvent(igAccountId, commentData) {
     logger.info(
       `Comment received on post ${postId}: "${commentText}" from @${commenterUsername}`,
     );
-
     const account = await InstagramAccount.findOne({
-      igUserId: igAccountId,
+      $or: [{ igUserId: igAccountId }, { pageId: igAccountId }],
       isConnected: true,
     }).select("+accessToken +pageAccessToken +instagramUserToken");
 

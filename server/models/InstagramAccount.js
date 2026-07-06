@@ -61,6 +61,10 @@ const instagramAccountSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    igBusinessId: {
+      type: String,
+      default: "",
+    },
     webhookSubscribed: {
       type: Boolean,
       default: false,
@@ -70,6 +74,7 @@ const instagramAccountSchema = new mongoose.Schema(
       default: Date.now,
     },
   },
+
   {
     timestamps: true,
   },
