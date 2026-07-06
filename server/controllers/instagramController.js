@@ -7,6 +7,7 @@ import {
   getInstagramAccount,
   getInstagramPosts,
   subscribeWebhook,
+  subscribeInstagramWebhook,
 } from "../services/instagramService.js";
 import { successResponse, errorResponse } from "../utils/apiResponse.js";
 import env from "../config/env.js";
@@ -176,15 +177,21 @@ export const handleCallback = async (req, res, next) => {
 
     try {
       await subscribeWebhook(pageWithIG.id, pageWithIG.access_token);
+
+      await subscribeInstagramWebhook(igAccountId, pageWithIG.access_token);
+
       account.webhookSubscribed = true;
       await account.save();
-      logger.info("Webhook subscribed");
+      logger.info("Webhook subscribed for Page and Instagram");
     } catch (err) {
       logger.warn(
-        `Webhook subscription failed but account connected: ${err.message}`,
+        `Webhook subscription failed but account connected: ${err.response?.data?.error?.message || err.message}`,
+      );
+      logger.warn(
+        "Full error:",
+        JSON.stringify(err.response?.data || {}).substring(0, 500),
       );
     }
-
     logger.info(
       `Instagram connected successfully: @${igData.username} for user ${userId}`,
     );

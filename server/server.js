@@ -56,10 +56,12 @@ app.post("/api/webhook", express.json(), async (req, res) => {
   res.status(200).send("EVENT_RECEIVED");
 
   try {
-    const { handleWebhook } =
+    const { processWebhookEvent } =
       await import("./controllers/webhookController.js");
-    req.body = req.body;
-    await handleWebhook(req, res);
+
+    processWebhookEvent(req.body).catch((err) => {
+      logger.error("Async webhook processing error", err);
+    });
   } catch (error) {
     logger.error("Webhook POST error", error);
   }

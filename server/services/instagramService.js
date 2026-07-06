@@ -161,17 +161,43 @@ export const subscribeWebhook = async (pageId, pageAccessToken) => {
     const response = await axios.post(
       `${GRAPH_API}/${pageId}/subscribed_apps`,
       {
-        subscribed_fields: "feed,comments,messages,messaging_postbacks",
+        subscribed_fields: "messages,messaging_postbacks,feed",
       },
       {
         params: { access_token: pageAccessToken },
       },
     );
-    logger.info(`Webhook subscribed for page: ${pageId}`);
+    logger.info(`Page webhook subscribed for page: ${pageId}`);
     return response.data;
   } catch (error) {
     logger.error(
-      `Webhook subscription failed for page ${pageId}`,
+      `Page webhook subscription failed for page ${pageId}`,
+      error.response?.data,
+    );
+    throw error;
+  }
+};
+
+// NEW: Subscribe Instagram account to comment webhooks
+export const subscribeInstagramWebhook = async (
+  igAccountId,
+  pageAccessToken,
+) => {
+  try {
+    const response = await axios.post(
+      `${GRAPH_API}/${igAccountId}/subscribed_apps`,
+      {
+        subscribed_fields: "comments,messages,mentions",
+      },
+      {
+        params: { access_token: pageAccessToken },
+      },
+    );
+    logger.info(`Instagram webhook subscribed for IG account: ${igAccountId}`);
+    return response.data;
+  } catch (error) {
+    logger.error(
+      `Instagram webhook subscription failed for IG ${igAccountId}`,
       error.response?.data,
     );
     throw error;

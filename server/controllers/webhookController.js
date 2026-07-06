@@ -34,11 +34,17 @@ export const verifyWebhook = (req, res) => {
   return res.status(403).send("Forbidden");
 };
 
+// Original handleWebhook - kept for backward compatibility with webhookRoutes.js
 export const handleWebhook = async (req, res) => {
   res.status(200).send("EVENT_RECEIVED");
+  processWebhookEvent(req.body).catch((err) => {
+    logger.error("Webhook processing error", err);
+  });
+};
 
+// New function that ONLY processes - does NOT send response
+export const processWebhookEvent = async (body) => {
   try {
-    const body = req.body;
     logger.info(
       "Webhook POST received:",
       JSON.stringify(body).substring(0, 500),
@@ -52,10 +58,19 @@ export const handleWebhook = async (req, res) => {
     for (const entry of body.entry || []) {
       const igAccountId = entry.id;
 
+      // Handle "changes" array (comments come here)
       for (const change of entry.changes || []) {
         if (change.field === "comments") {
           await processCommentEvent(igAccountId, change.value);
         }
+      }
+
+      // Handle "messaging" array (some webhooks use this format)
+      for (const messagingEvent of entry.messaging || []) {
+        logger.info(
+          "Messaging event received:",
+          JSON.stringify(messagingEvent).substring(0, 300),
+        );
       }
     }
   } catch (error) {
@@ -118,6 +133,7 @@ async function processCommentEvent(igAccountId, commentData) {
         commentText,
         commenterId,
         commenterUsername,
+        isTest: false,
       });
     }
   } catch (error) {
@@ -132,6 +148,7 @@ async function processCampaignMatch({
   commentText,
   commenterId,
   commenterUsername,
+  isTest = false,
 }) {
   try {
     const alreadyProcessed = campaign.processedComments.some(
@@ -185,7 +202,7 @@ async function processCampaignMatch({
     });
 
     logger.info(
-      `Keyword "${campaign.keyword}" matched! Sending DM to @${commenterUsername}`,
+      `Keyword "${campaign.keyword}" matched! ${isTest ? "[TEST MODE - Skipping actual DM]" : `Sending DM to @${commenterUsername}`}`,
     );
 
     let dmContent = campaign.dmMessage.replace(
@@ -197,12 +214,25 @@ async function processCampaignMatch({
       dmContent += `\n\n${campaign.dmLink}`;
     }
 
-    const dmResult = await sendInstagramDM(
-      account.igUserId,
-      commenterId,
-      dmContent,
-      account.pageAccessToken,
-    );
+    // In TEST mode, simulate success without calling Instagram API
+    let dmResult;
+    if (isTest) {
+      dmResult = {
+        success: true,
+        data: { message_id: `test_msg_${Date.now()}` },
+        isTest: true,
+      };
+      logger.info(
+        `[TEST MODE] Simulated DM to @${commenterUsername}: ${dmContent.substring(0, 100)}`,
+      );
+    } else {
+      dmResult = await sendInstagramDM(
+        account.igUserId,
+        commenterId,
+        dmContent,
+        account.pageAccessToken,
+      );
+    }
 
     if (dmResult.success) {
       campaign.stats.dmsSent += 1;
@@ -215,10 +245,15 @@ async function processCampaignMatch({
         commentText,
         fromUserId: commenterId,
         fromUsername: commenterUsername,
-        metadata: { messageId: dmResult.data?.message_id },
+        metadata: {
+          messageId: dmResult.data?.message_id,
+          isTest: isTest || false,
+        },
       });
 
-      logger.info(`DM sent successfully to @${commenterUsername}`);
+      logger.info(
+        `DM ${isTest ? "simulated" : "sent"} successfully to @${commenterUsername}`,
+      );
     } else {
       campaign.stats.dmsFailed += 1;
 
@@ -297,6 +332,7 @@ export const testWebhook = async (req, res) => {
     const testCommentId = `test_${Date.now()}`;
     const testUserId = `test_user_${Date.now()}`;
 
+    // Pass isTest: true to simulate DM without hitting Instagram API
     await processCampaignMatch({
       campaign,
       account,
@@ -304,11 +340,13 @@ export const testWebhook = async (req, res) => {
       commentText,
       commenterId: testUserId,
       commenterUsername: username,
+      isTest: true,
     });
 
     return res.status(200).json({
       success: true,
-      message: "Test comment processed. Check analytics for results.",
+      message:
+        "Test comment processed successfully. Check analytics for results. (Note: In test mode, no real DM is sent)",
     });
   } catch (error) {
     logger.error("Test webhook error", error);
