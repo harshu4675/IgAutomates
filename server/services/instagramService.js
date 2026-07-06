@@ -115,16 +115,16 @@ export const sendInstagramDM = async (
       `Attempting to send DM: igUser=${igUserId}, recipient=${recipientId}, commentId=${commentId}`,
     );
 
-    // If commentId provided, use Private Reply (comment_id)
-    // Otherwise fall back to regular DM (id) - only works in 24hr window
     const recipient = commentId
       ? { comment_id: commentId }
       : { id: recipientId };
 
     logger.info(`Using recipient format: ${JSON.stringify(recipient)}`);
 
+    const INSTAGRAM_API = "https://graph.instagram.com/v21.0";
+
     const response = await axios.post(
-      `${GRAPH_API}/${igUserId}/messages`,
+      `${INSTAGRAM_API}/${igUserId}/messages`,
       {
         recipient,
         message: { text: message },
