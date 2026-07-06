@@ -9,8 +9,6 @@ export const getLoginUrl = (userId) => {
     "instagram_business_basic",
     "instagram_business_manage_messages",
     "instagram_business_manage_comments",
-    "instagram_business_content_publish",
-    "business_management",
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_metadata",
