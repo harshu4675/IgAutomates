@@ -168,6 +168,45 @@ export const sendInstagramDM = async (
   }
 };
 
+export const replyToComment = async (commentId, message, accessToken) => {
+  try {
+    logger.info(`Attempting public reply to comment: ${commentId}`);
+
+    const response = await axios.post(
+      `${INSTAGRAM_API}/${commentId}/replies`,
+      { message },
+      {
+        params: { access_token: accessToken },
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    logger.info(
+      `Public reply sent successfully. ID: ${response.data.id || "unknown"}`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error?.message ||
+      error.response?.data?.error?.error_user_msg ||
+      error.message;
+
+    const errorCode = error.response?.data?.error?.code;
+
+    logger.error(`Public reply failed: ${errorMessage} (code: ${errorCode})`);
+
+    return {
+      success: false,
+      error: errorMessage,
+      errorCode,
+    };
+  }
+};
+
 export const subscribeWebhook = async (pageId, pageAccessToken) => {
   try {
     const response = await axios.post(
@@ -224,4 +263,51 @@ export const getAccountDetails = async (igAccountId, accessToken) => {
     },
   });
   return response.data;
+};
+
+export const getDelayMilliseconds = (delayType) => {
+  const ranges = {
+    instant: [0, 0],
+    short: [2000, 5000],
+    medium: [5000, 15000],
+    long: [15000, 30000],
+  };
+  const range = ranges[delayType] || ranges.short;
+  const [min, max] = range;
+  if (min === 0 && max === 0) return 0;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const pickDMTemplate = (campaign) => {
+  const templates = campaign.dmTemplates || [];
+
+  if (templates.length === 0) {
+    return {
+      message: campaign.dmMessage,
+      index: -1,
+    };
+  }
+
+  if (templates.length === 1) {
+    return {
+      message: templates[0].message,
+      index: 0,
+    };
+  }
+
+  if (campaign.templateRotation === "sequential") {
+    const nextIndex = (campaign.lastTemplateIndex + 1) % templates.length;
+    return {
+      message: templates[nextIndex].message,
+      index: nextIndex,
+    };
+  }
+
+  const randomIndex = Math.floor(Math.random() * templates.length);
+  return {
+    message: templates[randomIndex].message,
+    index: randomIndex,
+  };
 };

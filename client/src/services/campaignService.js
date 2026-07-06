@@ -13,17 +13,25 @@ export const campaignService = {
   },
 
   create: async (data) => {
+    const payload = {
+      ...data,
+      keywords: Array.isArray(data.keywords) ? data.keywords : [],
+    };
     const response = await axiosInstance.post(
       API_ENDPOINTS.CAMPAIGNS.BASE,
-      data,
+      payload,
     );
     return response;
   },
 
   update: async (id, data) => {
+    const payload = { ...data };
+    if (data.keywords !== undefined) {
+      payload.keywords = Array.isArray(data.keywords) ? data.keywords : [];
+    }
     const response = await axiosInstance.put(
       API_ENDPOINTS.CAMPAIGNS.BY_ID(id),
-      data,
+      payload,
     );
     return response;
   },
@@ -38,6 +46,13 @@ export const campaignService = {
   toggle: async (id) => {
     const response = await axiosInstance.patch(
       API_ENDPOINTS.CAMPAIGNS.TOGGLE(id),
+    );
+    return response;
+  },
+
+  duplicate: async (id) => {
+    const response = await axiosInstance.post(
+      API_ENDPOINTS.CAMPAIGNS.DUPLICATE(id),
     );
     return response;
   },

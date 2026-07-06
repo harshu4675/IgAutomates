@@ -52,34 +52,88 @@ export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
   };
 
   const handleNext = () => {
-    if (canGoNext() && currentStep < 3) {
-      setCurrentStep(currentStep + 1);
-    }
+    if (canGoNext() && currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
   const handleCreate = async (formData) => {
     setServerError("");
+
+    const matchType = formData.matchType || "contains";
+    const isAny = matchType === "any";
+
+    const keywordsList = Array.isArray(formData.keywords)
+      ? formData.keywords
+          .map((k) => String(k).toLowerCase().trim())
+          .filter(Boolean)
+      : [];
+
+    if (!isAny && keywordsList.length === 0) {
+      setServerError("Please add at least one keyword");
+      return;
+    }
+
+    const payload = {
+      instagramAccount: selectedAccountId,
+      name: formData.name,
+      igPostId: selectedPost.id,
+      igPostUrl: selectedPost.permalink || "",
+      igPostThumbnail:
+        selectedPost.thumbnail_url || selectedPost.media_url || "",
+      igPostCaption: selectedPost.caption || "",
+      igPostType: selectedPost.media_type || "IMAGE",
+      keywords: isAny ? [] : keywordsList,
+      keyword: isAny ? "" : keywordsList[0] || "",
+      matchType,
+      dmMessage: formData.dmMessage,
+      dmLink: formData.dmLink || "",
+      dmTemplates: Array.isArray(formData.dmTemplates)
+        ? formData.dmTemplates
+        : [],
+      templateRotation: formData.templateRotation || "random",
+      requireFollow: Boolean(formData.requireFollow),
+      followMessage: formData.followMessage || undefined,
+      publicReply: {
+        enabled: Boolean(formData.publicReply?.enabled),
+        message: formData.publicReply?.message || "Check your DMs!",
+      },
+      dmDelay: formData.dmDelay || "short",
+    };
+
+    if (formData.rateLimits) {
+      payload.rateLimits = {
+        enabled: Boolean(formData.rateLimits.enabled),
+        maxPerHour: Number(formData.rateLimits.maxPerHour) || 40,
+        maxPerDay: Number(formData.rateLimits.maxPerDay) || 200,
+        userCooldownMinutes:
+          Number(formData.rateLimits.userCooldownMinutes) || 2,
+        skipRepeatUsers:
+          formData.rateLimits.skipRepeatUsers === undefined
+            ? true
+            : Boolean(formData.rateLimits.skipRepeatUsers),
+        repeatUserHours: Number(formData.rateLimits.repeatUserHours) || 24,
+      };
+    }
+
+    if (formData.schedule) {
+      payload.schedule = {
+        enabled: Boolean(formData.schedule.enabled),
+        startDate: formData.schedule.startDate || null,
+        endDate: formData.schedule.endDate || null,
+        activeHoursStart: formData.schedule.activeHoursStart || "00:00",
+        activeHoursEnd: formData.schedule.activeHoursEnd || "23:59",
+        activeDays: Array.isArray(formData.schedule.activeDays)
+          ? formData.schedule.activeDays
+          : [0, 1, 2, 3, 4, 5, 6],
+        timezone: formData.schedule.timezone || "UTC",
+      };
+    }
+
     try {
-      await createMutation.mutateAsync({
-        instagramAccount: selectedAccountId,
-        name: formData.name,
-        igPostId: selectedPost.id,
-        igPostUrl: selectedPost.permalink || "",
-        igPostThumbnail:
-          selectedPost.thumbnail_url || selectedPost.media_url || "",
-        igPostCaption: selectedPost.caption || "",
-        igPostType: selectedPost.media_type || "IMAGE",
-        keyword: formData.keyword,
-        matchType: formData.matchType,
-        dmMessage: formData.dmMessage,
-        dmLink: formData.dmLink || "",
-      });
+      await createMutation.mutateAsync(payload);
       onClose();
     } catch (error) {
       const message =
@@ -115,7 +169,6 @@ export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
               <button
                 onClick={onClose}
                 className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-surface-cream transition-colors"
-                aria-label="Close"
               >
                 <HiOutlineXMark className="w-5 h-5 text-text-muted" />
               </button>

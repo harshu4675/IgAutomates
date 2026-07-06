@@ -1,37 +1,45 @@
 import { useQuery } from "@tanstack/react-query";
 import { analyticsService } from "@/services/analyticsService";
 
-export function useAnalyticsOverview(days = 30) {
+export function useAnalyticsOverview(params = {}) {
   return useQuery({
-    queryKey: ["analytics-overview", days],
-    queryFn: () => analyticsService.getOverview(days),
+    queryKey: ["analytics-overview", params],
+    queryFn: () => analyticsService.getOverview(params),
     select: (data) => data.data,
     refetchInterval: 30000,
   });
 }
 
-export function useRecentActivity(limit = 20, event = null) {
+export function useRecentActivity(limit = 20, event = null, campaignId = null) {
   return useQuery({
-    queryKey: ["recent-activity", limit, event],
-    queryFn: () => analyticsService.getRecentActivity(limit, event),
+    queryKey: ["recent-activity", limit, event, campaignId],
+    queryFn: () => analyticsService.getRecentActivity(limit, event, campaignId),
     select: (data) => data.data || [],
     refetchInterval: 10000,
   });
 }
 
-export function useCampaignStats(id, days = 30) {
+export function useCampaignStats(id, params = {}) {
   return useQuery({
-    queryKey: ["campaign-stats", id, days],
-    queryFn: () => analyticsService.getCampaignStats(id, days),
+    queryKey: ["campaign-stats", id, params],
+    queryFn: () => analyticsService.getCampaignStats(id, params),
     enabled: !!id,
     select: (data) => data.data,
   });
 }
 
-export function useHourlyDistribution(days = 7) {
+export function useHourlyDistribution(params = {}) {
   return useQuery({
-    queryKey: ["hourly-distribution", days],
-    queryFn: () => analyticsService.getHourlyDistribution(days),
+    queryKey: ["hourly-distribution", params],
+    queryFn: () => analyticsService.getHourlyDistribution(params),
     select: (data) => data.data || [],
+  });
+}
+
+export function useFunnel(params = {}) {
+  return useQuery({
+    queryKey: ["conversion-funnel", params],
+    queryFn: () => analyticsService.getFunnel(params),
+    select: (data) => data.data?.funnel || [],
   });
 }

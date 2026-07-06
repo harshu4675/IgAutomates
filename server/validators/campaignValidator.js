@@ -13,22 +13,37 @@ export const createCampaignValidation = [
     .isLength({ max: 200 })
     .withMessage("Name too long"),
   body("igPostId").notEmpty().withMessage("Post is required"),
-  body("keyword")
-    .trim()
-    .notEmpty()
-    .withMessage("Keyword is required")
-    .isLength({ min: 2, max: 50 })
-    .withMessage("Keyword must be 2-50 characters"),
   body("matchType")
     .optional()
-    .isIn(["exact", "contains"])
+    .isIn(["exact", "contains", "any", "starts_with", "ends_with"])
     .withMessage("Invalid match type"),
+  body("keywords").optional().isArray(),
+  body("keywords.*").optional().isString().isLength({ min: 1, max: 50 }),
+  body("keyword").optional().isString().isLength({ max: 50 }),
+  body().custom((value) => {
+    const matchType = value.matchType || "contains";
+    const hasKeywords =
+      Array.isArray(value.keywords) && value.keywords.length > 0;
+    const hasKeyword =
+      typeof value.keyword === "string" && value.keyword.trim().length > 0;
+    if (matchType === "any") return true;
+    if (!hasKeywords && !hasKeyword) {
+      throw new Error("At least one keyword is required");
+    }
+    return true;
+  }),
   body("dmMessage")
     .trim()
     .notEmpty()
     .withMessage("DM message is required")
     .isLength({ min: 10, max: 1000 })
     .withMessage("Message must be 10-1000 characters"),
+  body("dmTemplates").optional().isArray(),
+  body("dmTemplates.*.message")
+    .optional()
+    .isString()
+    .isLength({ min: 10, max: 1000 }),
+  body("templateRotation").optional().isIn(["random", "sequential"]),
   body("dmLink")
     .optional()
     .trim()
@@ -41,17 +56,52 @@ export const createCampaignValidation = [
         throw new Error("Invalid URL");
       }
     }),
+  body("requireFollow").optional().isBoolean(),
+  body("followMessage").optional().trim().isLength({ max: 1000 }),
+  body("publicReply").optional().isObject(),
+  body("publicReply.enabled").optional().isBoolean(),
+  body("publicReply.message").optional().trim().isLength({ max: 300 }),
+  body("dmDelay").optional().isIn(["instant", "short", "medium", "long"]),
+  body("rateLimits").optional().isObject(),
+  body("rateLimits.enabled").optional().isBoolean(),
+  body("rateLimits.maxPerHour").optional().isInt({ min: 1, max: 1000 }),
+  body("rateLimits.maxPerDay").optional().isInt({ min: 1, max: 10000 }),
+  body("rateLimits.userCooldownMinutes")
+    .optional()
+    .isInt({ min: 0, max: 1440 }),
+  body("rateLimits.skipRepeatUsers").optional().isBoolean(),
+  body("rateLimits.repeatUserHours").optional().isInt({ min: 1, max: 720 }),
+  body("schedule").optional().isObject(),
+  body("schedule.enabled").optional().isBoolean(),
+  body("schedule.startDate").optional(),
+  body("schedule.endDate").optional(),
+  body("schedule.activeHoursStart").optional().isString(),
+  body("schedule.activeHoursEnd").optional().isString(),
+  body("schedule.activeDays").optional().isArray(),
+  body("schedule.timezone").optional().isString(),
 ];
 
 export const updateCampaignValidation = [
   body("name").optional().trim().notEmpty().isLength({ max: 200 }),
-  body("keyword").optional().trim().notEmpty().isLength({ min: 2, max: 50 }),
-  body("matchType").optional().isIn(["exact", "contains"]),
+  body("keywords").optional().isArray(),
+  body("keywords.*").optional().isString().isLength({ min: 1, max: 50 }),
+  body("keyword").optional().isString().isLength({ max: 50 }),
+  body("matchType")
+    .optional()
+    .isIn(["exact", "contains", "any", "starts_with", "ends_with"]),
   body("dmMessage")
     .optional()
     .trim()
     .notEmpty()
     .isLength({ min: 10, max: 1000 }),
+  body("dmTemplates").optional().isArray(),
+  body("templateRotation").optional().isIn(["random", "sequential"]),
   body("dmLink").optional().trim(),
   body("isActive").optional().isBoolean(),
+  body("requireFollow").optional().isBoolean(),
+  body("followMessage").optional().trim().isLength({ max: 1000 }),
+  body("publicReply").optional().isObject(),
+  body("dmDelay").optional().isIn(["instant", "short", "medium", "long"]),
+  body("rateLimits").optional().isObject(),
+  body("schedule").optional().isObject(),
 ];

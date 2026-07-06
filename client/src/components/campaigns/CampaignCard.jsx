@@ -10,17 +10,44 @@ import {
   HiOutlineHashtag,
   HiOutlineCheckCircle,
   HiOutlineBeaker,
+  HiOutlineSparkles,
+  HiOutlineUserPlus,
+  HiOutlineChatBubbleBottomCenterText,
+  HiOutlineClock,
+  HiOutlineCalendarDays,
+  HiOutlineShieldCheck,
+  HiOutlineDocumentDuplicate,
 } from "react-icons/hi2";
 import { formatNumber } from "@/utils/formatNumber";
 import { formatDate } from "@/utils/formatDate";
-import { useToggleCampaign, useDeleteCampaign } from "@/hooks/useCampaigns";
+import {
+  useToggleCampaign,
+  useDeleteCampaign,
+  useDuplicateCampaign,
+} from "@/hooks/useCampaigns";
 import TestCampaignModal from "./TestCampaignModal";
+
+const MATCH_TYPE_LABELS = {
+  contains: "Contains",
+  exact: "Exact",
+  starts_with: "Starts with",
+  ends_with: "Ends with",
+  any: "Any comment",
+};
+
+const DELAY_LABELS = {
+  instant: "Instant",
+  short: "2-5s",
+  medium: "5-15s",
+  long: "15-30s",
+};
 
 export default function CampaignCard({ campaign }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [testModalOpen, setTestModalOpen] = useState(false);
   const toggleMutation = useToggleCampaign();
   const deleteMutation = useDeleteCampaign();
+  const duplicateMutation = useDuplicateCampaign();
 
   const handleToggle = () => {
     toggleMutation.mutate(campaign._id);
@@ -34,10 +61,33 @@ export default function CampaignCard({ campaign }) {
     setMenuOpen(false);
   };
 
+  const handleDuplicate = () => {
+    duplicateMutation.mutate(campaign._id);
+    setMenuOpen(false);
+  };
+
   const handleTest = () => {
     setTestModalOpen(true);
     setMenuOpen(false);
   };
+
+  const isAnyMode = campaign.matchType === "any";
+  const keywordsList =
+    Array.isArray(campaign.keywords) && campaign.keywords.length > 0
+      ? campaign.keywords
+      : campaign.keyword
+        ? [campaign.keyword]
+        : [];
+
+  const displayKeywords = keywordsList.slice(0, 3);
+  const extraCount = keywordsList.length - displayKeywords.length;
+
+  const hasFollowCheck = campaign.requireFollow;
+  const hasPublicReply = campaign.publicReply?.enabled;
+  const hasDelay = campaign.dmDelay && campaign.dmDelay !== "short";
+  const hasTemplates = campaign.dmTemplates && campaign.dmTemplates.length > 0;
+  const hasRateLimits = campaign.rateLimits?.enabled;
+  const hasSchedule = campaign.schedule?.enabled;
 
   return (
     <>
@@ -64,7 +114,7 @@ export default function CampaignCard({ campaign }) {
             )}
           </div>
 
-          <div className="absolute top-3 left-3">
+          <div className="absolute top-3 left-3 flex items-center gap-2 flex-wrap">
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg backdrop-blur-md text-[10px] font-jakarta font-bold uppercase tracking-wider ${
                 campaign.isActive
@@ -75,6 +125,13 @@ export default function CampaignCard({ campaign }) {
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
               {campaign.isActive ? "Active" : "Paused"}
             </span>
+
+            {isAnyMode && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/90 backdrop-blur-md text-[10px] font-jakarta font-bold text-primary-dark uppercase tracking-wider">
+                <HiOutlineSparkles className="w-3 h-3" />
+                Any
+              </span>
+            )}
           </div>
 
           <div className="absolute top-3 right-3">
@@ -82,7 +139,6 @@ export default function CampaignCard({ campaign }) {
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="w-9 h-9 rounded-xl bg-white/90 backdrop-blur-md flex items-center justify-center hover:bg-white transition-colors shadow-card"
-                aria-label="Options"
               >
                 <HiOutlineEllipsisVertical className="w-4 h-4 text-primary-darkest" />
               </button>
@@ -98,7 +154,7 @@ export default function CampaignCard({ campaign }) {
                       initial={{ opacity: 0, scale: 0.95, y: -5 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                      className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl border border-border-light shadow-glass-lg z-20 py-1"
+                      className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-border-light shadow-glass-lg z-20 py-1"
                     >
                       <button
                         onClick={handleTest}
@@ -123,6 +179,14 @@ export default function CampaignCard({ campaign }) {
                             Activate Campaign
                           </>
                         )}
+                      </button>
+                      <button
+                        onClick={handleDuplicate}
+                        disabled={duplicateMutation.isPending}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-jakarta text-text-primary hover:bg-surface-cream transition-colors disabled:opacity-50"
+                      >
+                        <HiOutlineDocumentDuplicate className="w-4 h-4" />
+                        Duplicate
                       </button>
                       <div className="h-px bg-border-light my-1" />
                       <button
@@ -153,21 +217,96 @@ export default function CampaignCard({ campaign }) {
           </div>
 
           <div className="mb-4 p-3 rounded-xl bg-surface-cream border border-border-light">
-            <div className="flex items-center gap-2 mb-2">
-              <HiOutlineHashtag className="w-3.5 h-3.5 text-primary-mid" />
-              <span className="text-[10px] font-jakarta font-bold text-text-muted uppercase tracking-wider">
-                Trigger keyword
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-1 rounded-lg bg-primary-lightest/60 text-xs font-jakarta font-bold text-primary-dark">
-                #{campaign.keyword}
-              </span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {isAnyMode ? (
+                  <HiOutlineSparkles className="w-3.5 h-3.5 text-primary-mid" />
+                ) : (
+                  <HiOutlineHashtag className="w-3.5 h-3.5 text-primary-mid" />
+                )}
+                <span className="text-[10px] font-jakarta font-bold text-text-muted uppercase tracking-wider">
+                  {isAnyMode ? "Trigger" : "Keywords"}
+                </span>
+              </div>
               <span className="text-[10px] text-text-muted font-jakarta">
-                {campaign.matchType}
+                {MATCH_TYPE_LABELS[campaign.matchType] || campaign.matchType}
               </span>
             </div>
+
+            {isAnyMode ? (
+              <span className="inline-block px-2.5 py-1 rounded-lg bg-primary-lightest/60 text-xs font-jakarta font-bold text-primary-dark">
+                Any comment
+              </span>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {displayKeywords.map((kw) => (
+                  <span
+                    key={kw}
+                    className="px-2 py-0.5 rounded-md bg-primary-lightest/60 text-[11px] font-jakarta font-bold text-primary-dark"
+                  >
+                    {kw}
+                  </span>
+                ))}
+                {extraCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-primary-mid/15 text-[11px] font-jakarta font-bold text-primary-dark">
+                    +{extraCount} more
+                  </span>
+                )}
+              </div>
+            )}
           </div>
+
+          {(hasFollowCheck ||
+            hasPublicReply ||
+            hasDelay ||
+            hasTemplates ||
+            hasRateLimits ||
+            hasSchedule) && (
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {hasFollowCheck && (
+                <FeatureBadge
+                  icon={HiOutlineUserPlus}
+                  label="Follow"
+                  color="amber"
+                />
+              )}
+              {hasPublicReply && (
+                <FeatureBadge
+                  icon={HiOutlineChatBubbleBottomCenterText}
+                  label="Reply"
+                  color="sky"
+                />
+              )}
+              {hasTemplates && (
+                <FeatureBadge
+                  icon={HiOutlineDocumentDuplicate}
+                  label={`${campaign.dmTemplates.length} templates`}
+                  color="violet"
+                />
+              )}
+              {hasRateLimits && (
+                <FeatureBadge
+                  icon={HiOutlineShieldCheck}
+                  label={`${campaign.rateLimits.maxPerHour}/hr`}
+                  color="emerald"
+                />
+              )}
+              {hasSchedule && (
+                <FeatureBadge
+                  icon={HiOutlineCalendarDays}
+                  label="Scheduled"
+                  color="rose"
+                />
+              )}
+              {hasDelay && (
+                <FeatureBadge
+                  icon={HiOutlineClock}
+                  label={DELAY_LABELS[campaign.dmDelay]}
+                  color="slate"
+                />
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2 pt-4 border-t border-border-light">
             <Stat
@@ -199,6 +338,26 @@ export default function CampaignCard({ campaign }) {
         campaign={campaign}
       />
     </>
+  );
+}
+
+function FeatureBadge({ icon: Icon, label, color }) {
+  const colors = {
+    amber: "bg-amber-50 border-amber-200 text-amber-800",
+    sky: "bg-sky-50 border-sky-200 text-sky-800",
+    violet: "bg-violet-50 border-violet-200 text-violet-800",
+    emerald: "bg-emerald-50 border-emerald-200 text-emerald-800",
+    rose: "bg-rose-50 border-rose-200 text-rose-800",
+    slate: "bg-slate-50 border-slate-200 text-slate-800",
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-jakarta font-semibold ${colors[color] || colors.slate}`}
+    >
+      <Icon className="w-3 h-3" />
+      {label}
+    </span>
   );
 }
 

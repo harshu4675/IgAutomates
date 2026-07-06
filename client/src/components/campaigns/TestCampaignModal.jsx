@@ -11,10 +11,21 @@ import Button from "@/components/common/Button";
 import { webhookService } from "@/services/webhookService";
 import { useQueryClient } from "@tanstack/react-query";
 
+const MATCH_TYPE_LABELS = {
+  contains: "Contains",
+  exact: "Exact",
+  starts_with: "Starts with",
+  ends_with: "Ends with",
+  any: "Any comment",
+};
+
 export default function TestCampaignModal({ isOpen, onClose, campaign }) {
   const [result, setResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
+
+  const firstKeyword =
+    (campaign?.keywords && campaign.keywords[0]) || campaign?.keyword || "";
 
   const {
     register,
@@ -24,7 +35,7 @@ export default function TestCampaignModal({ isOpen, onClose, campaign }) {
   } = useForm({
     defaultValues: {
       username: "test_user",
-      commentText: campaign?.keyword || "",
+      commentText: firstKeyword,
     },
   });
 
@@ -39,7 +50,7 @@ export default function TestCampaignModal({ isOpen, onClose, campaign }) {
       });
       setResult({
         success: true,
-        message: "Test comment processed successfully! Check analytics.",
+        message: "Test comment processed successfully. Check analytics.",
       });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["analytics-overview"] });
@@ -60,6 +71,15 @@ export default function TestCampaignModal({ isOpen, onClose, campaign }) {
   };
 
   if (!isOpen || !campaign) return null;
+
+  const keywordsList =
+    Array.isArray(campaign.keywords) && campaign.keywords.length > 0
+      ? campaign.keywords
+      : campaign.keyword
+        ? [campaign.keyword]
+        : [];
+
+  const isAnyMode = campaign.matchType === "any";
 
   return (
     <AnimatePresence>
@@ -125,16 +145,42 @@ export default function TestCampaignModal({ isOpen, onClose, campaign }) {
                       ? "border-red-400"
                       : "border-border-light"
                   }`}
-                  placeholder={`Try: "${campaign.keyword}"`}
+                  placeholder={
+                    isAnyMode
+                      ? "Type any comment"
+                      : `Try: "${firstKeyword || "keyword"}"`
+                  }
                   {...register("commentText", { required: "Comment required" })}
                 />
-                <p className="mt-1 text-[10px] text-text-muted font-jakarta">
-                  Trigger keyword:{" "}
-                  <span className="font-bold text-primary-dark">
-                    &quot;{campaign.keyword}&quot;
-                  </span>{" "}
-                  ({campaign.matchType})
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-[10px] text-text-muted font-jakarta">
+                    Match type:{" "}
+                    <span className="font-bold text-primary-dark">
+                      {MATCH_TYPE_LABELS[campaign.matchType] ||
+                        campaign.matchType}
+                    </span>
+                  </p>
+                  {!isAnyMode && keywordsList.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-[10px] text-text-muted font-jakarta">
+                        Keywords:
+                      </span>
+                      {keywordsList.slice(0, 5).map((kw) => (
+                        <span
+                          key={kw}
+                          className="px-1.5 py-0.5 rounded bg-primary-lightest/50 text-[10px] font-jakarta font-bold text-primary-dark"
+                        >
+                          {kw}
+                        </span>
+                      ))}
+                      {keywordsList.length > 5 && (
+                        <span className="text-[10px] text-text-muted font-jakarta">
+                          +{keywordsList.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {result && (

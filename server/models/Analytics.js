@@ -22,6 +22,16 @@ const analyticsSchema = new mongoose.Schema(
         "dm_sent",
         "dm_failed",
         "dm_opened",
+        "public_reply_sent",
+        "public_reply_failed",
+        "follow_message_sent",
+        "follow_conversion",
+        "dm_delayed",
+        "dm_reply_received",
+        "rate_limit_skip",
+        "schedule_skip",
+        "repeat_user_skip",
+        "cooldown_skip",
       ],
       required: true,
     },
@@ -53,6 +63,7 @@ const analyticsSchema = new mongoose.Schema(
 
 analyticsSchema.index({ user: 1, createdAt: -1 });
 analyticsSchema.index({ campaign: 1, event: 1 });
+analyticsSchema.index({ user: 1, event: 1, createdAt: -1 });
 
 const Analytics = mongoose.model("Analytics", analyticsSchema);
 

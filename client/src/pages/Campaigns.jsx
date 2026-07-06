@@ -44,14 +44,27 @@ export default function Campaigns() {
 
   const filteredCampaigns = useMemo(() => {
     if (!campaigns) return [];
+    const q = debouncedSearch.toLowerCase();
     return campaigns.filter((c) => {
+      const nameMatch = c.name?.toLowerCase().includes(q);
+      const singleKeywordMatch = c.keyword?.toLowerCase().includes(q);
+      const keywordsMatch =
+        Array.isArray(c.keywords) &&
+        c.keywords.some((k) => String(k).toLowerCase().includes(q));
+      const matchTypeMatch = c.matchType?.toLowerCase().includes(q);
+
       const matchesSearch =
-        c.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        c.keyword.toLowerCase().includes(debouncedSearch.toLowerCase());
+        !q ||
+        nameMatch ||
+        singleKeywordMatch ||
+        keywordsMatch ||
+        matchTypeMatch;
+
       const matchesFilter =
         filterStatus === "all" ||
         (filterStatus === "active" && c.isActive) ||
         (filterStatus === "paused" && !c.isActive);
+
       return matchesSearch && matchesFilter;
     });
   }, [campaigns, debouncedSearch, filterStatus]);
@@ -168,13 +181,13 @@ export default function Campaigns() {
                         ))}
                       </div>
 
-                      <div className="relative w-full md:w-72">
+                      <div className="relative w-full md:w-80">
                         <HiOutlineMagnifyingGlass className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                         <input
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="Search campaigns..."
+                          placeholder="Search by name, keyword or type..."
                           className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-border-light text-sm font-jakarta text-primary-darkest placeholder:text-text-muted/40 focus:outline-none focus:border-primary-mid focus:ring-2 focus:ring-primary-mid/20 transition-all"
                         />
                       </div>

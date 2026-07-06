@@ -63,3 +63,14 @@ export function useToggleCampaign() {
     },
   });
 }
+
+export function useDuplicateCampaign() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: campaignService.duplicate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+  });
+}
