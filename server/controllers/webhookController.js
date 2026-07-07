@@ -186,95 +186,136 @@ async function handleFollowFlowReply({
 
     const tokenToUse = account.instagramUserToken || account.pageAccessToken;
 
-    logger.info(
-      `User @${pendingCheck.username} replied to follow flow, trusting and sending resource`,
-    );
+    logger.info(`Verifying follow for @${pendingCheck.username}...`);
 
-    pendingCheck.verified = true;
+    let isVerifiedFollower = false;
 
-    if (!campaign.verifiedFollowers.includes(senderId)) {
-      campaign.verifiedFollowers.push(senderId);
-      campaign.stats.verifiedFollows += 1;
+    try {
+      const followCheck = await checkIfUserFollows(
+        account.igUserId,
+        senderId,
+        tokenToUse,
+      );
+      if (followCheck.success && followCheck.data?.business_discovery) {
+        isVerifiedFollower = true;
+      }
+    } catch (e) {
+      logger.warn("API follow check failed, trusting button click");
     }
 
-    await Analytics.create({
-      user: campaign.user,
-      campaign: campaign._id,
-      event: "follow_verified",
-      fromUserId: senderId,
-      fromUsername: pendingCheck.username,
-      commentId: pendingCheck.commentId,
-      metadata: {
-        method: pendingCheck.buttonClicked
-          ? "button_clicked_and_replied"
-          : "replied_only",
-        replyText: messageText,
-      },
-    });
-
-    const templateResult = pickDMTemplate(campaign);
-    let successMsg = campaign.followFlow.afterFollowMessage.replace(
-      /\{\{username\}\}/g,
-      pendingCheck.username,
-    );
-
-    if (campaign.dmLink) {
-      successMsg += `\n\n${campaign.dmLink}`;
-    }
-
-    const dmResult = await sendInstagramDM(
-      account.igUserId,
-      senderId,
-      successMsg,
-      tokenToUse,
-      null,
-    );
-
-    if (dmResult.success) {
-      campaign.stats.dmsSent += 1;
-      campaign.stats.followConversions += 1;
-
-      await Analytics.create({
-        user: campaign.user,
-        campaign: campaign._id,
-        event: "follow_conversion",
-        fromUserId: senderId,
-        fromUsername: pendingCheck.username,
-        metadata: {
-          messageId: dmResult.data?.message_id,
-          replyText: messageText,
-        },
-      });
-
-      await recordDMHistory({
-        user: campaign.user,
-        campaign: campaign._id,
-        recipientId: senderId,
-        recipientUsername: pendingCheck.username,
-        templateUsed: templateResult.index,
-      });
-
-      logger.info(`Resource DM sent to @${pendingCheck.username}`);
-    } else {
-      campaign.stats.dmsFailed += 1;
-
-      await Analytics.create({
-        user: campaign.user,
-        campaign: campaign._id,
-        event: "dm_failed",
-        fromUserId: senderId,
-        fromUsername: pendingCheck.username,
-        metadata: { error: dmResult.error, context: "follow_conversion" },
-      });
-
-      logger.error(
-        `Resource DM failed for @${pendingCheck.username}: ${dmResult.error}`,
+    if (!isVerifiedFollower && pendingCheck.buttonClicked) {
+      isVerifiedFollower = true;
+      logger.info(
+        `Trusting button click for @${pendingCheck.username} (API check unavailable)`,
       );
     }
 
-    campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(
-      (p) => p.userId !== senderId,
-    );
+    if (isVerifiedFollower) {
+      pendingCheck.verified = true;
+
+      if (!campaign.verifiedFollowers.includes(senderId)) {
+        campaign.verifiedFollowers.push(senderId);
+        campaign.stats.verifiedFollows += 1;
+      }
+
+      await Analytics.create({
+        user: campaign.user,
+        campaign: campaign._id,
+        event: "follow_verified",
+        fromUserId: senderId,
+        fromUsername: pendingCheck.username,
+        commentId: pendingCheck.commentId,
+      });
+
+      const templateResult = pickDMTemplate(campaign);
+      let successMsg = campaign.followFlow.afterFollowMessage.replace(
+        /\{\{username\}\}/g,
+        pendingCheck.username,
+      );
+
+      if (campaign.dmLink) {
+        successMsg += `\n\n${campaign.dmLink}`;
+      }
+
+      const dmResult = await sendInstagramDM(
+        account.igUserId,
+        senderId,
+        successMsg,
+        tokenToUse,
+        null,
+      );
+
+      if (dmResult.success) {
+        campaign.stats.dmsSent += 1;
+        campaign.stats.followConversions += 1;
+
+        await Analytics.create({
+          user: campaign.user,
+          campaign: campaign._id,
+          event: "follow_conversion",
+          fromUserId: senderId,
+          fromUsername: pendingCheck.username,
+          metadata: {
+            messageId: dmResult.data?.message_id,
+            replyText: messageText,
+          },
+        });
+
+        await recordDMHistory({
+          user: campaign.user,
+          campaign: campaign._id,
+          recipientId: senderId,
+          recipientUsername: pendingCheck.username,
+          templateUsed: templateResult.index,
+        });
+
+        logger.info(
+          `Resource DM sent to verified follower @${pendingCheck.username}`,
+        );
+      }
+
+      campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(
+        (p) => p.userId !== senderId,
+      );
+    } else {
+      if (pendingCheck.retryCount < campaign.followFlow.maxRetries) {
+        pendingCheck.retryCount += 1;
+        pendingCheck.lastMessageAt = new Date();
+
+        await sendDMWithButton(
+          account.igUserId,
+          senderId,
+          campaign.followFlow.retryMessage.replace(
+            /\{\{username\}\}/g,
+            pendingCheck.username,
+          ),
+          campaign.followFlow.followButtonText,
+          campaign.followFlow.profileUrl,
+          tokenToUse,
+          null,
+        );
+
+        await Analytics.create({
+          user: campaign.user,
+          campaign: campaign._id,
+          event: "follow_retry_sent",
+          fromUserId: senderId,
+          fromUsername: pendingCheck.username,
+          metadata: { retryCount: pendingCheck.retryCount },
+        });
+
+        logger.info(
+          `Retry ${pendingCheck.retryCount} sent to @${pendingCheck.username}`,
+        );
+      } else {
+        campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(
+          (p) => p.userId !== senderId,
+        );
+        logger.info(
+          `Max retries reached for @${pendingCheck.username}, removed from pending`,
+        );
+      }
+    }
 
     await campaign.save();
   } catch (error) {
