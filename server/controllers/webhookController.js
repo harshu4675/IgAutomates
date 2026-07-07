@@ -367,6 +367,35 @@ async function handleTextMessage(account, senderId, messageText) {
         messageText,
       });
     }
+
+    const upperText = messageText.trim().toUpperCase();
+    const isLinkRequest =
+      upperText === "SEND" ||
+      upperText === "LINK" ||
+      upperText === "YES" ||
+      upperText === "READY";
+
+    if (isLinkRequest) {
+      const replyFirstCampaigns = await Campaign.find({
+        instagramAccount: account._id,
+        isActive: true,
+        linkDeliveryMode: "reply_first",
+        dmLink: { $ne: "" },
+      });
+
+      logger.info(
+        `Found ${replyFirstCampaigns.length} reply_first campaigns to check`,
+      );
+
+      for (const campaign of replyFirstCampaigns) {
+        await handleReplyFirstLinkRequest({
+          campaign,
+          account,
+          senderId,
+          messageText,
+        });
+      }
+    }
   } catch (error) {
     logger.error("Error handling text message", error);
   }
@@ -509,7 +538,92 @@ async function handleFollowFlowReply({
     logger.error(`Follow flow reply error`, error);
   }
 }
+async function handleReplyFirstLinkRequest({
+  campaign,
+  account,
+  senderId,
+  messageText,
+}) {
+  try {
+    const recentlyDMed = campaign.processedComments.some(
+      (pc) =>
+        pc.userId === senderId &&
+        pc.dmSent &&
+        pc.processedAt &&
+        Date.now() - new Date(pc.processedAt).getTime() < 24 * 60 * 60 * 1000,
+    );
 
+    if (!recentlyDMed) {
+      logger.info(
+        `User ${senderId} not in recent DMs for campaign ${campaign._id}, skipping link send`,
+      );
+      return;
+    }
+
+    const alreadySentLink = campaign.processedComments.some(
+      (pc) =>
+        pc.userId === senderId && pc.matchedKeyword === "link_sent_reply_first",
+    );
+
+    if (alreadySentLink) {
+      logger.info(`Link already sent to user ${senderId}, skipping`);
+      return;
+    }
+
+    logger.info(`Sending link to @${senderId} via reply_first flow`);
+
+    const tokenToUse = account.instagramUserToken || account.pageAccessToken;
+
+    const linkMessage = `Here is your link:\n\n${campaign.dmLink.replace(/^https?:\/\//i, "")}\n\n(Copy and paste in your browser)`;
+
+    const dmResult = await sendInstagramDM(
+      account.igUserId,
+      senderId,
+      linkMessage,
+      tokenToUse,
+      null,
+    );
+
+    if (dmResult.success) {
+      campaign.stats.dmsSent += 1;
+
+      await Analytics.create({
+        user: campaign.user,
+        campaign: campaign._id,
+        event: "dm_sent",
+        fromUserId: senderId,
+        metadata: {
+          messageId: dmResult.data?.message_id,
+          context: "reply_first_link_delivery",
+          replyText: messageText,
+        },
+      });
+
+      campaign.processedComments.push({
+        commentId: `link_${Date.now()}_${senderId}`,
+        userId: senderId,
+        username: "",
+        text: messageText,
+        matchedKeyword: "link_sent_reply_first",
+        source: "reply",
+        dmSent: true,
+        dmSentAt: new Date(),
+        processedAt: new Date(),
+      });
+
+      if (campaign.processedComments.length > 500) {
+        campaign.processedComments = campaign.processedComments.slice(-500);
+      }
+
+      await campaign.save();
+      logger.info(`Link sent to @${senderId} via reply_first`);
+    } else {
+      logger.error(`Failed to send link via reply_first: ${dmResult.error}`);
+    }
+  } catch (error) {
+    logger.error("Error in handleReplyFirstLinkRequest", error);
+  }
+}
 async function handleLegacyFollowConversion({
   campaign,
   account,
