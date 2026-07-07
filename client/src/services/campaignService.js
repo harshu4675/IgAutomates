@@ -56,4 +56,11 @@ export const campaignService = {
     );
     return response;
   },
+
+  resetFollowers: async (id) => {
+    const response = await axiosInstance.post(
+      API_ENDPOINTS.CAMPAIGNS.RESET_FOLLOWERS(id),
+    );
+    return response;
+  },
 };

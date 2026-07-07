@@ -17,6 +17,9 @@ import {
   HiOutlineCalendarDays,
   HiOutlineShieldCheck,
   HiOutlineDocumentDuplicate,
+  HiOutlineShare,
+  HiOutlineLink,
+  HiOutlineArrowPath,
 } from "react-icons/hi2";
 import { formatNumber } from "@/utils/formatNumber";
 import { formatDate } from "@/utils/formatDate";
@@ -24,6 +27,7 @@ import {
   useToggleCampaign,
   useDeleteCampaign,
   useDuplicateCampaign,
+  useResetFollowerCache,
 } from "@/hooks/useCampaigns";
 import TestCampaignModal from "./TestCampaignModal";
 
@@ -42,12 +46,20 @@ const DELAY_LABELS = {
   long: "15-30s",
 };
 
+const LINK_MODE_LABELS = {
+  no_https: "Safe Link",
+  direct: "Direct Link",
+  delayed: "No Link",
+  reply_first: "Reply First",
+};
+
 export default function CampaignCard({ campaign }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [testModalOpen, setTestModalOpen] = useState(false);
   const toggleMutation = useToggleCampaign();
   const deleteMutation = useDeleteCampaign();
   const duplicateMutation = useDuplicateCampaign();
+  const resetFollowersMutation = useResetFollowerCache();
 
   const handleToggle = () => {
     toggleMutation.mutate(campaign._id);
@@ -71,6 +83,17 @@ export default function CampaignCard({ campaign }) {
     setMenuOpen(false);
   };
 
+  const handleResetFollowers = () => {
+    if (
+      confirm(
+        `Reset follower cache for "${campaign.name}"? All verified followers will need to re-verify.`,
+      )
+    ) {
+      resetFollowersMutation.mutate(campaign._id);
+    }
+    setMenuOpen(false);
+  };
+
   const isAnyMode = campaign.matchType === "any";
   const keywordsList =
     Array.isArray(campaign.keywords) && campaign.keywords.length > 0
@@ -82,12 +105,20 @@ export default function CampaignCard({ campaign }) {
   const displayKeywords = keywordsList.slice(0, 3);
   const extraCount = keywordsList.length - displayKeywords.length;
 
-  const hasFollowCheck = campaign.requireFollow;
+  const hasFollowFlow = campaign.followFlow?.enabled;
+  const hasShareTrigger = campaign.shareTrigger?.enabled;
   const hasPublicReply = campaign.publicReply?.enabled;
   const hasDelay = campaign.dmDelay && campaign.dmDelay !== "short";
   const hasTemplates = campaign.dmTemplates && campaign.dmTemplates.length > 0;
   const hasRateLimits = campaign.rateLimits?.enabled;
   const hasSchedule = campaign.schedule?.enabled;
+  const hasSpecialLinkMode =
+    campaign.dmLink &&
+    campaign.linkDeliveryMode &&
+    campaign.linkDeliveryMode !== "direct";
+
+  const verifiedCount = campaign.verifiedFollowersCount || 0;
+  const pendingCount = campaign.pendingFollowCount || 0;
 
   return (
     <>
@@ -132,6 +163,13 @@ export default function CampaignCard({ campaign }) {
                 Any
               </span>
             )}
+
+            {hasShareTrigger && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/90 backdrop-blur-md text-[10px] font-jakarta font-bold text-white uppercase tracking-wider">
+                <HiOutlineShare className="w-3 h-3" />
+                Share
+              </span>
+            )}
           </div>
 
           <div className="absolute top-3 right-3">
@@ -154,7 +192,7 @@ export default function CampaignCard({ campaign }) {
                       initial={{ opacity: 0, scale: 0.95, y: -5 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                      className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-border-light shadow-glass-lg z-20 py-1"
+                      className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl border border-border-light shadow-glass-lg z-20 py-1"
                     >
                       <button
                         onClick={handleTest}
@@ -188,6 +226,16 @@ export default function CampaignCard({ campaign }) {
                         <HiOutlineDocumentDuplicate className="w-4 h-4" />
                         Duplicate
                       </button>
+                      {hasFollowFlow && verifiedCount > 0 && (
+                        <button
+                          onClick={handleResetFollowers}
+                          disabled={resetFollowersMutation.isPending}
+                          className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-jakarta text-primary-dark hover:bg-surface-cream transition-colors disabled:opacity-50"
+                        >
+                          <HiOutlineArrowPath className="w-4 h-4" />
+                          Reset Followers ({verifiedCount})
+                        </button>
+                      )}
                       <div className="h-px bg-border-light my-1" />
                       <button
                         onClick={handleDelete}
@@ -256,24 +304,46 @@ export default function CampaignCard({ campaign }) {
             )}
           </div>
 
-          {(hasFollowCheck ||
+          {(hasFollowFlow ||
+            hasShareTrigger ||
             hasPublicReply ||
             hasDelay ||
             hasTemplates ||
             hasRateLimits ||
-            hasSchedule) && (
+            hasSchedule ||
+            hasSpecialLinkMode) && (
             <div className="mb-4 flex flex-wrap gap-1.5">
-              {hasFollowCheck && (
+              {hasFollowFlow && (
                 <FeatureBadge
                   icon={HiOutlineUserPlus}
-                  label="Follow"
-                  color="amber"
+                  label={
+                    verifiedCount > 0
+                      ? `Follow (${verifiedCount})`
+                      : "Follow Flow"
+                  }
+                  color="emerald"
+                />
+              )}
+              {hasShareTrigger && (
+                <FeatureBadge
+                  icon={HiOutlineShare}
+                  label="Share Trigger"
+                  color="purple"
+                />
+              )}
+              {hasSpecialLinkMode && (
+                <FeatureBadge
+                  icon={HiOutlineLink}
+                  label={
+                    LINK_MODE_LABELS[campaign.linkDeliveryMode] || "Link Mode"
+                  }
+                  color="sky"
                 />
               )}
               {hasPublicReply && (
                 <FeatureBadge
                   icon={HiOutlineChatBubbleBottomCenterText}
-                  label="Reply"
+                  label="Public Reply"
                   color="sky"
                 />
               )}
@@ -308,6 +378,28 @@ export default function CampaignCard({ campaign }) {
             </div>
           )}
 
+          {hasFollowFlow && (verifiedCount > 0 || pendingCount > 0) && (
+            <div className="mb-4 p-2.5 rounded-lg bg-emerald-50 border border-emerald-100">
+              <div className="flex items-center justify-between text-[10px] font-jakarta">
+                <span className="text-emerald-700 font-semibold">
+                  Follower Status
+                </span>
+                <div className="flex items-center gap-3">
+                  {verifiedCount > 0 && (
+                    <span className="text-emerald-800 font-bold">
+                      {verifiedCount} verified
+                    </span>
+                  )}
+                  {pendingCount > 0 && (
+                    <span className="text-amber-700 font-bold">
+                      {pendingCount} pending
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-2 pt-4 border-t border-border-light">
             <Stat
               icon={HiOutlineBolt}
@@ -329,6 +421,28 @@ export default function CampaignCard({ campaign }) {
               label="Success"
             />
           </div>
+
+          {campaign.stats?.sharesReceived > 0 && (
+            <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-purple-600 font-jakarta">
+              <HiOutlineShare className="w-3 h-3" />
+              <span className="font-semibold">
+                {campaign.stats.sharesReceived}
+              </span>
+              <span className="text-text-muted">shares detected</span>
+            </div>
+          )}
+
+          {campaign.stats?.linkBlocked > 0 && (
+            <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-amber-600 font-jakarta">
+              <HiOutlineShieldCheck className="w-3 h-3" />
+              <span className="font-semibold">
+                {campaign.stats.linkBlocked}
+              </span>
+              <span className="text-text-muted">
+                links blocked (fallback used)
+              </span>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -349,6 +463,7 @@ function FeatureBadge({ icon: Icon, label, color }) {
     emerald: "bg-emerald-50 border-emerald-200 text-emerald-800",
     rose: "bg-rose-50 border-rose-200 text-rose-800",
     slate: "bg-slate-50 border-slate-200 text-slate-800",
+    purple: "bg-purple-50 border-purple-200 text-purple-800",
   };
 
   return (

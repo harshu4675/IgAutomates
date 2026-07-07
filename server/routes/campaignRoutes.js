@@ -7,6 +7,7 @@ import {
   deleteCampaign,
   toggleCampaign,
   duplicateCampaign,
+  resetFollowerCache,
 } from "../controllers/campaignController.js";
 import {
   createCampaignValidation,
@@ -26,5 +27,6 @@ router.put("/:id", updateCampaignValidation, validate, updateCampaign);
 router.delete("/:id", deleteCampaign);
 router.patch("/:id/toggle", toggleCampaign);
 router.post("/:id/duplicate", duplicateCampaign);
+router.post("/:id/reset-followers", resetFollowerCache);
 
 export default router;

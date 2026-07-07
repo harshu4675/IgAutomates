@@ -4,6 +4,7 @@ import Analytics from "../models/Analytics.js";
 import {
   sendInstagramDM,
   sendDMWithButton,
+  sendDMWithLinkFallback,
   replyToComment,
   getDelayMilliseconds,
   sleep,
@@ -38,7 +39,7 @@ export const handleWebhook = async (req, res) => {
 
 export const processWebhookEvent = async (body) => {
   try {
-    logger.info("Webhook received:", JSON.stringify(body).substring(0, 500));
+    logger.info("Webhook received:", JSON.stringify(body).substring(0, 800));
 
     if (body.object !== "instagram") return;
 
@@ -64,32 +65,226 @@ async function processMessagingEvent(igAccountId, messagingEvent) {
   try {
     const senderId = messagingEvent.sender?.id;
 
-    if (!senderId || senderId === igAccountId) return;
+    if (!senderId || senderId === igAccountId) {
+      logger.info(`Skipping message from account owner or invalid sender`);
+      return;
+    }
 
     const account = await InstagramAccount.findOne({
       $or: [{ igUserId: igAccountId }, { pageId: igAccountId }],
       isConnected: true,
     }).select("+accessToken +pageAccessToken +instagramUserToken");
 
-    if (!account) return;
+    if (!account) {
+      logger.warn(`No account found for IG ID: ${igAccountId}`);
+      return;
+    }
 
     if (messagingEvent.postback) {
       await handlePostback(account, senderId, messagingEvent.postback);
       return;
     }
 
-    if (messagingEvent.message?.text) {
-      await handleTextMessage(account, senderId, messagingEvent.message.text);
+    if (messagingEvent.message) {
+      const msg = messagingEvent.message;
+
+      if (msg.is_echo) {
+        logger.info(`Skipping echo message`);
+        return;
+      }
+
+      if (msg.attachments && msg.attachments.length > 0) {
+        await handleAttachmentMessage(account, senderId, msg);
+        return;
+      }
+
+      if (msg.text) {
+        await handleTextMessage(account, senderId, msg.text);
+        return;
+      }
     }
+
+    logger.info(
+      `Unhandled messaging event: ${JSON.stringify(messagingEvent).substring(0, 200)}`,
+    );
   } catch (error) {
     logger.error("Error processing messaging event", error);
+  }
+}
+
+async function handleAttachmentMessage(account, senderId, message) {
+  try {
+    logger.info(
+      `Attachment message from ${senderId}: ${JSON.stringify(message.attachments).substring(0, 300)}`,
+    );
+
+    for (const attachment of message.attachments) {
+      const type = attachment.type;
+      const payload = attachment.payload || {};
+
+      let mediaId = null;
+      let source = null;
+
+      if (type === "ig_reel" || type === "reel") {
+        mediaId =
+          payload.reel_video_id ||
+          payload.media_id ||
+          extractMediaIdFromUrl(payload.url);
+        source = "share";
+      } else if (type === "share") {
+        mediaId =
+          payload.media_id || payload.id || extractMediaIdFromUrl(payload.url);
+        source = "share";
+      } else if (type === "story_mention") {
+        mediaId =
+          payload.story_id ||
+          payload.media_id ||
+          extractMediaIdFromUrl(payload.url);
+        source = "story_mention";
+      }
+
+      if (!mediaId) {
+        logger.warn(`Could not extract media ID from attachment type: ${type}`);
+        continue;
+      }
+
+      logger.info(
+        `Detected ${source} for media ${mediaId} from user ${senderId}`,
+      );
+
+      await processShareEvent({
+        account,
+        senderId,
+        mediaId,
+        source,
+      });
+    }
+  } catch (error) {
+    logger.error("Error handling attachment message", error);
+  }
+}
+
+function extractMediaIdFromUrl(url) {
+  if (!url || typeof url !== "string") return null;
+  try {
+    const patterns = [
+      /\/p\/([A-Za-z0-9_-]+)/,
+      /\/reel\/([A-Za-z0-9_-]+)/,
+      /\/tv\/([A-Za-z0-9_-]+)/,
+      /media_id=(\d+)/,
+      /\/(\d{15,})/,
+    ];
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+  } catch (e) {
+    return null;
+  }
+  return null;
+}
+
+async function processShareEvent({ account, senderId, mediaId, source }) {
+  try {
+    const campaigns = await Campaign.find({
+      instagramAccount: account._id,
+      igPostId: mediaId,
+      isActive: true,
+      "shareTrigger.enabled": true,
+    });
+
+    if (campaigns.length === 0) {
+      logger.info(`No active share campaigns for media ${mediaId}`);
+      return;
+    }
+
+    logger.info(
+      `Found ${campaigns.length} share campaigns for media ${mediaId}`,
+    );
+
+    let userProfile = { username: `user_${senderId.substring(0, 8)}` };
+    try {
+      const profile = await getUserProfileQuick(
+        senderId,
+        account.instagramUserToken || account.pageAccessToken,
+      );
+      if (profile.username) userProfile = profile;
+    } catch (e) {
+      logger.warn("Could not fetch user profile for share");
+    }
+
+    for (const campaign of campaigns) {
+      const shareType = source === "story_mention" ? "story_mention" : "share";
+
+      if (
+        source === "story_mention" &&
+        !campaign.shareTrigger.triggerOnStoryMention
+      ) {
+        logger.info(
+          `Story mention triggers disabled for campaign ${campaign._id}`,
+        );
+        continue;
+      }
+
+      if (source === "share" && !campaign.shareTrigger.triggerOnDMShare) {
+        logger.info(`DM share triggers disabled for campaign ${campaign._id}`);
+        continue;
+      }
+
+      campaign.stats.sharesReceived += 1;
+
+      await Analytics.create({
+        user: campaign.user,
+        campaign: campaign._id,
+        event:
+          source === "story_mention"
+            ? "story_mention_received"
+            : "share_received",
+        fromUserId: senderId,
+        fromUsername: userProfile.username,
+        source: shareType,
+        metadata: { mediaId },
+      });
+
+      await processCampaignTrigger({
+        campaign,
+        account,
+        commentId: `share_${Date.now()}_${senderId}`,
+        commentText: campaign.shareTrigger.shareMessage || "shared",
+        commenterId: senderId,
+        commenterUsername: userProfile.username,
+        source: shareType,
+        isTest: false,
+        skipKeywordCheck: true,
+      });
+    }
+  } catch (error) {
+    logger.error("Error processing share event", error);
+  }
+}
+
+async function getUserProfileQuick(userId, accessToken) {
+  try {
+    const axios = (await import("axios")).default;
+    const response = await axios.get(
+      `https://graph.instagram.com/v21.0/${userId}`,
+      {
+        params: {
+          access_token: accessToken,
+          fields: "username,name",
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    return { username: null };
   }
 }
 
 async function handlePostback(account, senderId, postback) {
   try {
     logger.info(
-      `Postback received from ${senderId}: ${JSON.stringify(postback)}`,
+      `Postback from ${senderId}: ${JSON.stringify(postback).substring(0, 200)}`,
     );
 
     const campaigns = await Campaign.find({
@@ -98,6 +293,8 @@ async function handlePostback(account, senderId, postback) {
       "followFlow.enabled": true,
       "pendingFollowChecks.userId": senderId,
     });
+
+    logger.info(`Found ${campaigns.length} pending campaigns for postback`);
 
     for (const campaign of campaigns) {
       const pendingCheck = campaign.pendingFollowChecks.find(
@@ -114,6 +311,7 @@ async function handlePostback(account, senderId, postback) {
           event: "follow_button_clicked",
           fromUserId: senderId,
           fromUsername: pendingCheck.username,
+          source: pendingCheck.source || "comment",
           metadata: { commentId: pendingCheck.commentId },
         });
 
@@ -186,19 +384,19 @@ async function handleFollowFlowReply({
     );
 
     if (!pendingCheck) {
-      logger.info(`No pending check found for ${senderId}`);
+      logger.info(`No pending check for ${senderId}`);
       return;
     }
 
     if (pendingCheck.verified) {
-      logger.info(`User ${senderId} already verified, skipping`);
+      logger.info(`User ${senderId} already verified`);
       return;
     }
 
     const tokenToUse = account.instagramUserToken || account.pageAccessToken;
 
     logger.info(
-      `User @${pendingCheck.username} replied to follow flow, sending resource now`,
+      `@${pendingCheck.username} replied to follow flow, sending resource now`,
     );
 
     pendingCheck.verified = true;
@@ -215,6 +413,7 @@ async function handleFollowFlowReply({
       fromUserId: senderId,
       fromUsername: pendingCheck.username,
       commentId: pendingCheck.commentId,
+      source: pendingCheck.source || "comment",
       metadata: {
         method: pendingCheck.buttonClicked
           ? "button_clicked_and_replied"
@@ -223,30 +422,36 @@ async function handleFollowFlowReply({
       },
     });
 
-    let successMsg = (
+    const baseMsg = (
       campaign.followFlow?.afterFollowMessage ||
-      "Awesome! Here's your resource:"
+      "Awesome! Here is your resource:"
     ).replace(/\{\{username\}\}/g, pendingCheck.username);
 
-    if (campaign.dmLink) {
-      successMsg += `\n\n${campaign.dmLink}`;
-    }
-
-    logger.info(
-      `Sending success DM to @${pendingCheck.username}: "${successMsg.substring(0, 100)}"`,
-    );
-
-    const dmResult = await sendInstagramDM(
-      account.igUserId,
-      senderId,
-      successMsg,
-      tokenToUse,
-      null,
-    );
+    const dmResult = await sendDMWithLinkFallback({
+      igUserId: account.igUserId,
+      recipientId: senderId,
+      message: baseMsg,
+      link: campaign.dmLink,
+      accessToken: tokenToUse,
+      commentId: null,
+      linkDeliveryMode: campaign.linkDeliveryMode || "no_https",
+    });
 
     if (dmResult.success) {
       campaign.stats.dmsSent += 1;
       campaign.stats.followConversions += 1;
+
+      if (dmResult.wasBlocked) {
+        campaign.stats.linkBlocked += 1;
+        await Analytics.create({
+          user: campaign.user,
+          campaign: campaign._id,
+          event: "link_blocked",
+          fromUserId: senderId,
+          fromUsername: pendingCheck.username,
+          metadata: { mode: dmResult.mode, fallbackUsed: true },
+        });
+      }
 
       await Analytics.create({
         user: campaign.user,
@@ -254,9 +459,12 @@ async function handleFollowFlowReply({
         event: "follow_conversion",
         fromUserId: senderId,
         fromUsername: pendingCheck.username,
+        source: pendingCheck.source || "comment",
         metadata: {
           messageId: dmResult.data?.message_id,
           replyText: messageText,
+          linkMode: dmResult.mode,
+          linkIncluded: dmResult.linkIncluded,
         },
       });
 
@@ -268,7 +476,9 @@ async function handleFollowFlowReply({
         templateUsed: -1,
       });
 
-      logger.info(`Resource DM sent successfully to @${pendingCheck.username}`);
+      logger.info(
+        `Resource DM sent to @${pendingCheck.username} (mode: ${dmResult.mode})`,
+      );
     } else {
       campaign.stats.dmsFailed += 1;
 
@@ -278,7 +488,11 @@ async function handleFollowFlowReply({
         event: "dm_failed",
         fromUserId: senderId,
         fromUsername: pendingCheck.username,
-        metadata: { error: dmResult.error, context: "follow_conversion" },
+        metadata: {
+          error: dmResult.error,
+          errorCode: dmResult.errorCode,
+          context: "follow_conversion",
+        },
       });
 
       logger.error(
@@ -292,7 +506,7 @@ async function handleFollowFlowReply({
 
     await campaign.save();
   } catch (error) {
-    logger.error(`Follow flow reply error for campaign ${campaign._id}`, error);
+    logger.error(`Follow flow reply error`, error);
   }
 }
 
@@ -311,24 +525,26 @@ async function handleLegacyFollowConversion({
 
     const tokenToUse = account.instagramUserToken || account.pageAccessToken;
     const templateResult = pickDMTemplate(campaign);
-    let dmContent = templateResult.message.replace(
+    const baseContent = templateResult.message.replace(
       /\{\{username\}\}/g,
       pendingUser.username,
     );
 
-    if (campaign.dmLink) dmContent += `\n\n${campaign.dmLink}`;
-
-    const dmResult = await sendInstagramDM(
-      account.igUserId,
-      senderId,
-      dmContent,
-      tokenToUse,
-      null,
-    );
+    const dmResult = await sendDMWithLinkFallback({
+      igUserId: account.igUserId,
+      recipientId: senderId,
+      message: baseContent,
+      link: campaign.dmLink,
+      accessToken: tokenToUse,
+      commentId: null,
+      linkDeliveryMode: campaign.linkDeliveryMode || "no_https",
+    });
 
     if (dmResult.success) {
       campaign.stats.dmsSent += 1;
       campaign.stats.followConversions += 1;
+
+      if (dmResult.wasBlocked) campaign.stats.linkBlocked += 1;
 
       await Analytics.create({
         user: campaign.user,
@@ -340,6 +556,7 @@ async function handleLegacyFollowConversion({
         metadata: {
           messageId: dmResult.data?.message_id,
           replyText: messageText,
+          linkMode: dmResult.mode,
         },
       });
 
@@ -395,14 +612,16 @@ async function processCommentEvent(igAccountId, commentData) {
     if (campaigns.length === 0) return;
 
     for (const campaign of campaigns) {
-      await processCampaignMatch({
+      await processCampaignTrigger({
         campaign,
         account,
         commentId,
         commentText,
         commenterId,
         commenterUsername,
+        source: "comment",
         isTest: false,
+        skipKeywordCheck: false,
       });
     }
   } catch (error) {
@@ -410,14 +629,16 @@ async function processCommentEvent(igAccountId, commentData) {
   }
 }
 
-async function processCampaignMatch({
+async function processCampaignTrigger({
   campaign,
   account,
   commentId,
   commentText,
   commenterId,
   commenterUsername,
+  source = "comment",
   isTest = false,
+  skipKeywordCheck = false,
 }) {
   try {
     const alreadyProcessed = campaign.processedComments.some(
@@ -429,52 +650,70 @@ async function processCampaignMatch({
       return;
     }
 
-    campaign.stats.totalComments += 1;
-
-    const matchResult = checkKeywordMatch(
-      commentText,
-      campaign.keywords && campaign.keywords.length > 0
-        ? campaign.keywords
-        : campaign.keyword
-          ? [campaign.keyword]
-          : [],
-      campaign.matchType,
-    );
-
-    await Analytics.create({
-      user: campaign.user,
-      campaign: campaign._id,
-      event: "comment_received",
-      commentId,
-      commentText,
-      fromUserId: commenterId,
-      fromUsername: commenterUsername,
-    });
-
-    if (!matchResult.matched) {
-      await campaign.save();
-      return;
+    if (source === "comment") {
+      campaign.stats.totalComments += 1;
     }
 
-    campaign.stats.keywordMatches += 1;
+    let matchResult = { matched: true, matchedKeyword: source };
 
-    await Analytics.create({
-      user: campaign.user,
-      campaign: campaign._id,
-      event: "keyword_matched",
-      commentId,
-      commentText,
-      fromUserId: commenterId,
-      fromUsername: commenterUsername,
-      metadata: {
-        matchedKeyword: matchResult.matchedKeyword,
-        matchType: campaign.matchType,
-      },
-    });
+    if (!skipKeywordCheck) {
+      matchResult = checkKeywordMatch(
+        commentText,
+        campaign.keywords && campaign.keywords.length > 0
+          ? campaign.keywords
+          : campaign.keyword
+            ? [campaign.keyword]
+            : [],
+        campaign.matchType,
+      );
 
-    logger.info(
-      `Matched "${matchResult.matchedKeyword}" for @${commenterUsername}`,
-    );
+      await Analytics.create({
+        user: campaign.user,
+        campaign: campaign._id,
+        event: "comment_received",
+        commentId,
+        commentText,
+        fromUserId: commenterId,
+        fromUsername: commenterUsername,
+        source,
+      });
+
+      if (!matchResult.matched) {
+        await campaign.save();
+        return;
+      }
+
+      campaign.stats.keywordMatches += 1;
+
+      await Analytics.create({
+        user: campaign.user,
+        campaign: campaign._id,
+        event: "keyword_matched",
+        commentId,
+        commentText,
+        fromUserId: commenterId,
+        fromUsername: commenterUsername,
+        source,
+        metadata: {
+          matchedKeyword: matchResult.matchedKeyword,
+          matchType: campaign.matchType,
+        },
+      });
+
+      logger.info(
+        `Matched "${matchResult.matchedKeyword}" for @${commenterUsername}`,
+      );
+    } else {
+      await Analytics.create({
+        user: campaign.user,
+        campaign: campaign._id,
+        event: "share_processed",
+        commentId,
+        fromUserId: commenterId,
+        fromUsername: commenterUsername,
+        source,
+      });
+    }
 
     if (!isTest) {
       const scheduleCheck = isCampaignScheduleActive(campaign);
@@ -488,6 +727,7 @@ async function processCampaignMatch({
           commentText,
           fromUserId: commenterId,
           fromUsername: commenterUsername,
+          source,
           metadata: scheduleCheck,
         });
         campaign.processedComments.push({
@@ -496,6 +736,7 @@ async function processCampaignMatch({
           username: commenterUsername,
           text: commentText,
           matchedKeyword: matchResult.matchedKeyword,
+          source,
           dmSent: false,
           skipReason: `schedule: ${scheduleCheck.reason}`,
           processedAt: new Date(),
@@ -515,6 +756,7 @@ async function processCampaignMatch({
           commentText,
           fromUserId: commenterId,
           fromUsername: commenterUsername,
+          source,
           metadata: rateLimitCheck,
         });
         campaign.processedComments.push({
@@ -523,6 +765,7 @@ async function processCampaignMatch({
           username: commenterUsername,
           text: commentText,
           matchedKeyword: matchResult.matchedKeyword,
+          source,
           dmSent: false,
           skipReason: rateLimitCheck.reason,
           processedAt: new Date(),
@@ -537,7 +780,11 @@ async function processCampaignMatch({
     let dmSent = false;
     let wasFollower = false;
 
-    if (campaign.publicReply?.enabled && campaign.publicReply?.message) {
+    if (
+      source === "comment" &&
+      campaign.publicReply?.enabled &&
+      campaign.publicReply?.message
+    ) {
       if (!isTest) {
         const replyResult = await replyToComment(
           commentId,
@@ -555,7 +802,19 @@ async function processCampaignMatch({
             commentText,
             fromUserId: commenterId,
             fromUsername: commenterUsername,
+            source,
             metadata: { replyText: campaign.publicReply.message },
+          });
+        } else {
+          await Analytics.create({
+            user: campaign.user,
+            campaign: campaign._id,
+            event: "public_reply_failed",
+            commentId,
+            fromUserId: commenterId,
+            fromUsername: commenterUsername,
+            source,
+            metadata: { error: replyResult.error },
           });
         }
       } else {
@@ -570,9 +829,9 @@ async function processCampaignMatch({
         campaign: campaign._id,
         event: "dm_delayed",
         commentId,
-        commentText,
         fromUserId: commenterId,
         fromUsername: commenterUsername,
+        source,
         metadata: { delayMs, delayType: campaign.dmDelay },
       });
       await sleep(delayMs);
@@ -581,7 +840,7 @@ async function processCampaignMatch({
     const followFlowActive = campaign.followFlow?.enabled === true;
 
     logger.info(
-      `Follow flow active for campaign ${campaign._id}: ${followFlowActive}`,
+      `Follow flow active for campaign ${campaign._id}: ${followFlowActive}, source: ${source}`,
     );
 
     if (followFlowActive && !isTest) {
@@ -594,23 +853,25 @@ async function processCampaignMatch({
           `@${commenterUsername} is verified follower, sending direct DM`,
         );
 
-        let msg = (
+        const baseMsg = (
           campaign.followFlow.followerMessage ||
-          "Thanks for commenting! Here's your resource:"
+          "Thanks! Here is your resource:"
         ).replace(/\{\{username\}\}/g, commenterUsername);
-        if (campaign.dmLink) msg += `\n\n${campaign.dmLink}`;
 
-        const dmResult = await sendInstagramDM(
-          account.igUserId,
-          commenterId,
-          msg,
-          tokenToUse,
-          commentId,
-        );
+        const dmResult = await sendDMWithLinkFallback({
+          igUserId: account.igUserId,
+          recipientId: commenterId,
+          message: baseMsg,
+          link: campaign.dmLink,
+          accessToken: tokenToUse,
+          commentId: source === "comment" ? commentId : null,
+          linkDeliveryMode: campaign.linkDeliveryMode || "no_https",
+        });
 
         if (dmResult.success) {
           dmSent = true;
           campaign.stats.dmsSent += 1;
+          if (dmResult.wasBlocked) campaign.stats.linkBlocked += 1;
           await incrementRateLimitCounters(campaign);
           await recordDMHistory({
             user: campaign.user,
@@ -625,10 +886,13 @@ async function processCampaignMatch({
             campaign: campaign._id,
             event: "already_follower_dm",
             commentId,
-            commentText,
             fromUserId: commenterId,
             fromUsername: commenterUsername,
-            metadata: { messageId: dmResult.data?.message_id },
+            source,
+            metadata: {
+              messageId: dmResult.data?.message_id,
+              linkMode: dmResult.mode,
+            },
           });
 
           await Analytics.create({
@@ -636,12 +900,13 @@ async function processCampaignMatch({
             campaign: campaign._id,
             event: "dm_sent",
             commentId,
-            commentText,
             fromUserId: commenterId,
             fromUsername: commenterUsername,
+            source,
             metadata: {
               messageId: dmResult.data?.message_id,
               context: "verified_follower",
+              linkMode: dmResult.mode,
             },
           });
         } else {
@@ -649,6 +914,19 @@ async function processCampaignMatch({
           logger.error(
             `Failed to send DM to verified follower: ${dmResult.error}`,
           );
+          await Analytics.create({
+            user: campaign.user,
+            campaign: campaign._id,
+            event: "dm_failed",
+            commentId,
+            fromUserId: commenterId,
+            fromUsername: commenterUsername,
+            source,
+            metadata: {
+              error: dmResult.error,
+              context: "verified_follower",
+            },
+          });
         }
       } else {
         const alreadyPending = campaign.pendingFollowChecks.some(
@@ -671,7 +949,7 @@ async function processCampaignMatch({
             campaign.followFlow.followButtonText || "Follow Us",
             campaign.followFlow.profileUrl,
             tokenToUse,
-            commentId,
+            source === "comment" ? commentId : null,
           );
 
           if (buttonResult.success) {
@@ -681,6 +959,7 @@ async function processCampaignMatch({
               userId: commenterId,
               username: commenterUsername,
               commentId,
+              source,
               retryCount: 0,
               lastMessageAt: new Date(),
               buttonClicked: false,
@@ -697,9 +976,9 @@ async function processCampaignMatch({
               campaign: campaign._id,
               event: "follow_button_sent",
               commentId,
-              commentText,
               fromUserId: commenterId,
               fromUsername: commenterUsername,
+              source,
               metadata: {
                 messageId: buttonResult.data?.message_id,
                 buttonUrl: campaign.followFlow.profileUrl,
@@ -714,9 +993,9 @@ async function processCampaignMatch({
               campaign: campaign._id,
               event: "dm_failed",
               commentId,
-              commentText,
               fromUserId: commenterId,
               fromUsername: commenterUsername,
+              source,
               metadata: {
                 error: buttonResult.error,
                 context: "follow_button",
@@ -727,9 +1006,7 @@ async function processCampaignMatch({
             );
           }
         } else {
-          logger.info(
-            `@${commenterUsername} already has pending follow check, skipping`,
-          );
+          logger.info(`@${commenterUsername} already has pending follow check`);
         }
       }
     } else {
@@ -738,31 +1015,35 @@ async function processCampaignMatch({
       );
 
       const templateResult = pickDMTemplate(campaign);
-      let dmContent = templateResult.message.replace(
+      const baseContent = templateResult.message.replace(
         /\{\{username\}\}/g,
         commenterUsername,
       );
-      if (campaign.dmLink) dmContent += `\n\n${campaign.dmLink}`;
 
       let dmResult;
       if (isTest) {
         dmResult = {
           success: true,
           data: { message_id: `test_${Date.now()}` },
+          linkIncluded: !!campaign.dmLink,
+          mode: "test",
         };
       } else {
-        dmResult = await sendInstagramDM(
-          account.igUserId,
-          commenterId,
-          dmContent,
-          tokenToUse,
-          commentId,
-        );
+        dmResult = await sendDMWithLinkFallback({
+          igUserId: account.igUserId,
+          recipientId: commenterId,
+          message: baseContent,
+          link: campaign.dmLink,
+          accessToken: tokenToUse,
+          commentId: source === "comment" ? commentId : null,
+          linkDeliveryMode: campaign.linkDeliveryMode || "no_https",
+        });
       }
 
       if (dmResult.success) {
         dmSent = true;
         campaign.stats.dmsSent += 1;
+        if (dmResult.wasBlocked) campaign.stats.linkBlocked += 1;
 
         if (templateResult.index >= 0) {
           campaign.lastTemplateIndex = templateResult.index;
@@ -790,16 +1071,19 @@ async function processCampaignMatch({
           commentText,
           fromUserId: commenterId,
           fromUsername: commenterUsername,
+          source,
           metadata: {
             messageId: dmResult.data?.message_id,
             matchedKeyword: matchResult.matchedKeyword,
             templateUsed: templateResult.index,
+            linkMode: dmResult.mode,
+            linkIncluded: dmResult.linkIncluded,
             isTest: isTest || false,
           },
         });
 
         logger.info(
-          `DM ${isTest ? "simulated" : "sent"} to @${commenterUsername}`,
+          `DM ${isTest ? "simulated" : "sent"} to @${commenterUsername} (mode: ${dmResult.mode})`,
         );
       } else {
         campaign.stats.dmsFailed += 1;
@@ -808,10 +1092,13 @@ async function processCampaignMatch({
           campaign: campaign._id,
           event: "dm_failed",
           commentId,
-          commentText,
           fromUserId: commenterId,
           fromUsername: commenterUsername,
-          metadata: { error: dmResult.error },
+          source,
+          metadata: {
+            error: dmResult.error,
+            errorCode: dmResult.errorCode,
+          },
         });
       }
     }
@@ -822,6 +1109,7 @@ async function processCampaignMatch({
       username: commenterUsername,
       text: commentText,
       matchedKeyword: matchResult.matchedKeyword || "",
+      source,
       dmSent,
       dmSentAt: dmSent ? new Date() : null,
       publicReplySent,
@@ -835,7 +1123,7 @@ async function processCampaignMatch({
 
     await campaign.save();
   } catch (error) {
-    logger.error(`Error processing campaign match: ${campaign._id}`, error);
+    logger.error(`Error processing campaign trigger: ${campaign._id}`, error);
   }
 }
 
@@ -905,14 +1193,16 @@ export const testWebhook = async (req, res) => {
       campaign.instagramAccount._id,
     ).select("+accessToken +pageAccessToken +instagramUserToken");
 
-    await processCampaignMatch({
+    await processCampaignTrigger({
       campaign,
       account,
       commentId: `test_${Date.now()}`,
       commentText,
       commenterId: `test_user_${Date.now()}`,
       commenterUsername: username,
+      source: "comment",
       isTest: true,
+      skipKeywordCheck: false,
     });
 
     return res.status(200).json({

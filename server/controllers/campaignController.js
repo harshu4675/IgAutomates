@@ -111,7 +111,7 @@ const normalizeFollowFlow = (followFlow) => {
       typeof followFlow.followerMessage === "string" &&
       followFlow.followerMessage.trim()
         ? followFlow.followerMessage.trim()
-        : "Thanks for commenting! Here's your resource:",
+        : "Thanks for commenting! Here is your resource:",
     nonFollowerMessage:
       typeof followFlow.nonFollowerMessage === "string" &&
       followFlow.nonFollowerMessage.trim()
@@ -126,7 +126,7 @@ const normalizeFollowFlow = (followFlow) => {
       typeof followFlow.afterFollowMessage === "string" &&
       followFlow.afterFollowMessage.trim()
         ? followFlow.afterFollowMessage.trim()
-        : "Awesome! Thanks for following. Here's your resource:",
+        : "Awesome! Thanks for following. Here is your resource:",
     retryMessage:
       typeof followFlow.retryMessage === "string" &&
       followFlow.retryMessage.trim()
@@ -134,6 +134,33 @@ const normalizeFollowFlow = (followFlow) => {
         : "Still not following? Tap the button and follow us to unlock the resource!",
     maxRetries: Math.max(1, Math.min(10, Number(followFlow.maxRetries) || 3)),
   };
+};
+
+const normalizeShareTrigger = (shareTrigger) => {
+  if (!shareTrigger || typeof shareTrigger !== "object") return null;
+
+  return {
+    enabled: Boolean(shareTrigger.enabled),
+    triggerOnDMShare:
+      shareTrigger.triggerOnDMShare === undefined
+        ? true
+        : Boolean(shareTrigger.triggerOnDMShare),
+    triggerOnStoryMention:
+      shareTrigger.triggerOnStoryMention === undefined
+        ? true
+        : Boolean(shareTrigger.triggerOnStoryMention),
+    shareMessage:
+      typeof shareTrigger.shareMessage === "string" &&
+      shareTrigger.shareMessage.trim()
+        ? shareTrigger.shareMessage.trim()
+        : "Thanks for sharing our post! Here is your special resource:",
+  };
+};
+
+const normalizeLinkDeliveryMode = (mode) => {
+  const validModes = ["direct", "delayed", "reply_first", "no_https"];
+  if (typeof mode !== "string") return "no_https";
+  return validModes.includes(mode) ? mode : "no_https";
 };
 
 export const getCampaigns = async (req, res, next) => {
@@ -165,6 +192,9 @@ export const getCampaigns = async (req, res, next) => {
         ...rest,
         verifiedFollowersCount: Array.isArray(verifiedFollowers)
           ? verifiedFollowers.length
+          : 0,
+        pendingFollowCount: Array.isArray(pendingFollowChecks)
+          ? pendingFollowChecks.length
           : 0,
       };
     });
@@ -212,9 +242,11 @@ export const createCampaign = async (req, res, next) => {
       dmTemplates,
       templateRotation,
       dmLink,
+      linkDeliveryMode,
       requireFollow,
       followMessage,
       followFlow,
+      shareTrigger,
       publicReply,
       dmDelay,
       rateLimits,
@@ -272,6 +304,7 @@ export const createCampaign = async (req, res, next) => {
       matchType: finalMatchType,
       dmMessage,
       dmLink: dmLink || "",
+      linkDeliveryMode: normalizeLinkDeliveryMode(linkDeliveryMode),
       requireFollow: Boolean(requireFollow),
       dmDelay: dmDelay || "short",
       templateRotation: templateRotation || "random",
@@ -296,6 +329,11 @@ export const createCampaign = async (req, res, next) => {
         );
       }
       campaignData.followFlow = cleanFollowFlow;
+    }
+
+    const cleanShareTrigger = normalizeShareTrigger(shareTrigger);
+    if (cleanShareTrigger) {
+      campaignData.shareTrigger = cleanShareTrigger;
     }
 
     if (publicReply && typeof publicReply === "object") {
@@ -334,10 +372,12 @@ export const updateCampaign = async (req, res, next) => {
       "dmTemplates",
       "templateRotation",
       "dmLink",
+      "linkDeliveryMode",
       "isActive",
       "requireFollow",
       "followMessage",
       "followFlow",
+      "shareTrigger",
       "publicReply",
       "dmDelay",
       "rateLimits",
@@ -357,6 +397,12 @@ export const updateCampaign = async (req, res, next) => {
 
     if (updates.dmTemplates !== undefined) {
       updates.dmTemplates = normalizeTemplates(updates.dmTemplates);
+    }
+
+    if (updates.linkDeliveryMode !== undefined) {
+      updates.linkDeliveryMode = normalizeLinkDeliveryMode(
+        updates.linkDeliveryMode,
+      );
     }
 
     if (updates.publicReply && typeof updates.publicReply === "object") {
@@ -396,6 +442,12 @@ export const updateCampaign = async (req, res, next) => {
       } else {
         delete updates.followFlow;
       }
+    }
+
+    if (updates.shareTrigger !== undefined) {
+      const clean = normalizeShareTrigger(updates.shareTrigger);
+      if (clean) updates.shareTrigger = clean;
+      else delete updates.shareTrigger;
     }
 
     const campaign = await Campaign.findOneAndUpdate(
@@ -484,6 +536,32 @@ export const duplicateCampaign = async (req, res, next) => {
     });
 
     return successResponse(res, 201, "Campaign duplicated", clone);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetFollowerCache = async (req, res, next) => {
+  try {
+    const campaign = await Campaign.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+
+    if (!campaign) return errorResponse(res, 404, "Campaign not found");
+
+    const previousCount = campaign.verifiedFollowers.length;
+    campaign.verifiedFollowers = [];
+    campaign.pendingFollowChecks = [];
+    await campaign.save();
+
+    logger.info(
+      `Follower cache reset for campaign ${campaign._id} (${previousCount} users cleared)`,
+    );
+
+    return successResponse(res, 200, "Follower cache cleared", {
+      previousCount,
+    });
   } catch (error) {
     next(error);
   }

@@ -56,6 +56,14 @@ export const checkRateLimits = async (campaign, recipientId) => {
 };
 
 export const incrementRateLimitCounters = async (campaign) => {
+  if (!campaign.rateLimitCounters) {
+    campaign.rateLimitCounters = {
+      hourlyCount: 0,
+      dailyCount: 0,
+      hourlyResetAt: new Date(),
+      dailyResetAt: new Date(),
+    };
+  }
   campaign.rateLimitCounters.hourlyCount += 1;
   campaign.rateLimitCounters.dailyCount += 1;
 };

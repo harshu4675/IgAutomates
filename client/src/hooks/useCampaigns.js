@@ -74,3 +74,14 @@ export function useDuplicateCampaign() {
     },
   });
 }
+
+export function useResetFollowerCache() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: campaignService.resetFollowers,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+  });
+}

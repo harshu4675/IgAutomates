@@ -44,17 +44,24 @@ export const createCampaignValidation = [
     .isLength({ min: 10, max: 1000 }),
   body("templateRotation").optional().isIn(["random", "sequential"]),
   body("dmLink")
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .trim()
     .custom((value) => {
       if (!value) return true;
       try {
-        new URL(value);
+        const withProtocol = value.startsWith("http")
+          ? value
+          : `https://${value}`;
+        new URL(withProtocol);
         return true;
       } catch {
         throw new Error("Invalid URL");
       }
     }),
+  body("linkDeliveryMode")
+    .optional()
+    .isIn(["direct", "delayed", "reply_first", "no_https"])
+    .withMessage("Invalid link delivery mode"),
   body("requireFollow").optional().isBoolean(),
   body("followMessage").optional().trim().isLength({ max: 1000 }),
   body("followFlow").optional().isObject(),
@@ -64,7 +71,10 @@ export const createCampaignValidation = [
     .custom((value) => {
       if (!value) return true;
       try {
-        new URL(value);
+        const withProtocol = value.startsWith("http")
+          ? value
+          : `https://${value}`;
+        new URL(withProtocol);
         return true;
       } catch {
         throw new Error("Invalid profile URL");
@@ -82,6 +92,11 @@ export const createCampaignValidation = [
     .isLength({ max: 1000 }),
   body("followFlow.retryMessage").optional().trim().isLength({ max: 1000 }),
   body("followFlow.maxRetries").optional().isInt({ min: 1, max: 10 }),
+  body("shareTrigger").optional().isObject(),
+  body("shareTrigger.enabled").optional().isBoolean(),
+  body("shareTrigger.triggerOnDMShare").optional().isBoolean(),
+  body("shareTrigger.triggerOnStoryMention").optional().isBoolean(),
+  body("shareTrigger.shareMessage").optional().trim().isLength({ max: 1000 }),
   body("publicReply").optional().isObject(),
   body("publicReply.enabled").optional().isBoolean(),
   body("publicReply.message").optional().trim().isLength({ max: 300 }),
@@ -116,10 +131,14 @@ export const updateCampaignValidation = [
   body("dmTemplates").optional().isArray(),
   body("templateRotation").optional().isIn(["random", "sequential"]),
   body("dmLink").optional().trim(),
+  body("linkDeliveryMode")
+    .optional()
+    .isIn(["direct", "delayed", "reply_first", "no_https"]),
   body("isActive").optional().isBoolean(),
   body("requireFollow").optional().isBoolean(),
   body("followMessage").optional().trim().isLength({ max: 1000 }),
   body("followFlow").optional().isObject(),
+  body("shareTrigger").optional().isObject(),
   body("publicReply").optional().isObject(),
   body("dmDelay").optional().isIn(["instant", "short", "medium", "long"]),
   body("rateLimits").optional().isObject(),

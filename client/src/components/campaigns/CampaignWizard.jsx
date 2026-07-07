@@ -97,6 +97,7 @@ export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
       matchType,
       dmMessage: formData.dmMessage,
       dmLink: formData.dmLink || "",
+      linkDeliveryMode: formData.linkDeliveryMode || "no_https",
       dmTemplates: Array.isArray(formData.dmTemplates)
         ? formData.dmTemplates
         : [],
@@ -116,18 +117,35 @@ export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
         profileUrl: formData.followFlow.profileUrl || "",
         followerMessage:
           formData.followFlow.followerMessage ||
-          "Thanks for commenting! Here's your resource:",
+          "Thanks for commenting! Here is your resource:",
         nonFollowerMessage:
           formData.followFlow.nonFollowerMessage ||
           "Hey! Please follow us to get the resource. Tap the button below:",
         followButtonText: formData.followFlow.followButtonText || "Follow Us",
         afterFollowMessage:
           formData.followFlow.afterFollowMessage ||
-          "Awesome! Thanks for following. Here's your resource:",
+          "Awesome! Thanks for following. Here is your resource:",
         retryMessage:
           formData.followFlow.retryMessage ||
           "Still not following? Tap the button and follow us to unlock the resource!",
         maxRetries: Number(formData.followFlow.maxRetries) || 3,
+      };
+    }
+
+    if (formData.shareTrigger && formData.shareTrigger.enabled) {
+      payload.shareTrigger = {
+        enabled: true,
+        triggerOnDMShare:
+          formData.shareTrigger.triggerOnDMShare === undefined
+            ? true
+            : Boolean(formData.shareTrigger.triggerOnDMShare),
+        triggerOnStoryMention:
+          formData.shareTrigger.triggerOnStoryMention === undefined
+            ? true
+            : Boolean(formData.shareTrigger.triggerOnStoryMention),
+        shareMessage:
+          formData.shareTrigger.shareMessage ||
+          "Thanks for sharing our post! Here is your special resource:",
       };
     }
 

@@ -69,6 +69,11 @@ const campaignSchema = new mongoose.Schema(
     },
     lastTemplateIndex: { type: Number, default: -1 },
     dmLink: { type: String, trim: true, default: "" },
+    linkDeliveryMode: {
+      type: String,
+      enum: ["direct", "delayed", "reply_first", "no_https"],
+      default: "no_https",
+    },
     requireFollow: { type: Boolean, default: false },
     followMessage: {
       type: String,
@@ -84,7 +89,7 @@ const campaignSchema = new mongoose.Schema(
         type: String,
         trim: true,
         maxlength: 1000,
-        default: "Thanks for commenting! Here's your resource:",
+        default: "Thanks for commenting! Here is your resource:",
       },
       nonFollowerMessage: {
         type: String,
@@ -103,7 +108,7 @@ const campaignSchema = new mongoose.Schema(
         type: String,
         trim: true,
         maxlength: 1000,
-        default: "Awesome! Thanks for following. Here's your resource:",
+        default: "Awesome! Thanks for following. Here is your resource:",
       },
       retryMessage: {
         type: String,
@@ -114,12 +119,28 @@ const campaignSchema = new mongoose.Schema(
       },
       maxRetries: { type: Number, default: 3, min: 1, max: 10 },
     },
+    shareTrigger: {
+      enabled: { type: Boolean, default: false },
+      triggerOnDMShare: { type: Boolean, default: true },
+      triggerOnStoryMention: { type: Boolean, default: true },
+      shareMessage: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+        default: "Thanks for sharing our post! Here is your special resource:",
+      },
+    },
     verifiedFollowers: { type: [String], default: [] },
     pendingFollowChecks: [
       {
         userId: String,
         username: String,
         commentId: String,
+        source: {
+          type: String,
+          enum: ["comment", "share", "story_mention"],
+          default: "comment",
+        },
         retryCount: { type: Number, default: 0 },
         lastMessageAt: Date,
         buttonClicked: { type: Boolean, default: false },
@@ -144,9 +165,9 @@ const campaignSchema = new mongoose.Schema(
       enabled: { type: Boolean, default: false },
       maxPerHour: { type: Number, default: 40, min: 1, max: 1000 },
       maxPerDay: { type: Number, default: 200, min: 1, max: 10000 },
-      userCooldownMinutes: { type: Number, default: 0, min: 0, max: 1440 },
+      userCooldownMinutes: { type: Number, default: 0 },
       skipRepeatUsers: { type: Boolean, default: false },
-      repeatUserHours: { type: Number, default: 24, min: 1, max: 720 },
+      repeatUserHours: { type: Number, default: 24 },
     },
     rateLimitCounters: {
       hourlyCount: { type: Number, default: 0 },
@@ -179,6 +200,8 @@ const campaignSchema = new mongoose.Schema(
       scheduleSkips: { type: Number, default: 0 },
       buttonClicks: { type: Number, default: 0 },
       verifiedFollows: { type: Number, default: 0 },
+      sharesReceived: { type: Number, default: 0 },
+      linkBlocked: { type: Number, default: 0 },
     },
     processedComments: [
       {
@@ -187,6 +210,11 @@ const campaignSchema = new mongoose.Schema(
         username: String,
         text: String,
         matchedKeyword: String,
+        source: {
+          type: String,
+          enum: ["comment", "share", "story_mention"],
+          default: "comment",
+        },
         dmSent: Boolean,
         dmSentAt: Date,
         publicReplySent: Boolean,

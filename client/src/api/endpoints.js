@@ -18,6 +18,7 @@ export const API_ENDPOINTS = {
     BY_ID: (id) => `/campaigns/${id}`,
     TOGGLE: (id) => `/campaigns/${id}/toggle`,
     DUPLICATE: (id) => `/campaigns/${id}/duplicate`,
+    RESET_FOLLOWERS: (id) => `/campaigns/${id}/reset-followers`,
   },
   ANALYTICS: {
     OVERVIEW: "/analytics/overview",

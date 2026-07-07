@@ -16,10 +16,13 @@ import {
   HiOutlineCalendarDays,
   HiOutlineDocumentDuplicate,
   HiOutlineHandRaised,
+  HiOutlineShare,
+  HiOutlineShieldCheck,
   HiPlus,
   HiXMark,
   HiOutlineTrash,
   HiOutlineCheckBadge,
+  HiOutlineExclamationTriangle,
 } from "react-icons/hi2";
 
 const MATCH_TYPES = [
@@ -35,6 +38,33 @@ const DELAY_OPTIONS = [
   { value: "short", label: "Short", desc: "2-5 seconds" },
   { value: "medium", label: "Medium", desc: "5-15 seconds" },
   { value: "long", label: "Long", desc: "15-30 seconds" },
+];
+
+const LINK_DELIVERY_MODES = [
+  {
+    value: "no_https",
+    label: "Safe Mode",
+    desc: "Removes https:// (recommended)",
+    badge: "Recommended",
+  },
+  {
+    value: "direct",
+    label: "Direct",
+    desc: "Send link as-is",
+    badge: null,
+  },
+  {
+    value: "delayed",
+    label: "No Link",
+    desc: "Skip link in first DM",
+    badge: null,
+  },
+  {
+    value: "reply_first",
+    label: "Reply First",
+    desc: "Ask user to reply for link",
+    badge: "Safest",
+  },
 ];
 
 const RATE_LIMIT_PRESETS = [
@@ -91,6 +121,8 @@ export default function AutomationSetup({
   const [keywordInput, setKeywordInput] = useState("");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [followFlowOpen, setFollowFlowOpen] = useState(false);
+  const [shareTriggerOpen, setShareTriggerOpen] = useState(false);
+  const [linkSettingsOpen, setLinkSettingsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [rateLimitsOpen, setRateLimitsOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -108,6 +140,7 @@ export default function AutomationSetup({
       matchType: "contains",
       dmMessage: "",
       dmLink: "",
+      linkDeliveryMode: "no_https",
       dmTemplates: [],
       templateRotation: "random",
       requireFollow: false,
@@ -115,15 +148,22 @@ export default function AutomationSetup({
       followFlow: {
         enabled: false,
         profileUrl: "",
-        followerMessage: "Thanks for commenting! Here's your resource:",
+        followerMessage: "Thanks for commenting! Here is your resource:",
         nonFollowerMessage:
           "Hey! Please follow us to get the resource. Tap the button below:",
         followButtonText: "Follow Us",
         afterFollowMessage:
-          "Awesome! Thanks for following. Here's your resource:",
+          "Awesome! Thanks for following. Here is your resource:",
         retryMessage:
           "Still not following? Tap the button and follow us to unlock the resource!",
         maxRetries: 3,
+      },
+      shareTrigger: {
+        enabled: false,
+        triggerOnDMShare: true,
+        triggerOnStoryMention: true,
+        shareMessage:
+          "Thanks for sharing our post! Here is your special resource:",
       },
       publicReply: {
         enabled: false,
@@ -157,6 +197,8 @@ export default function AutomationSetup({
   });
 
   const dmMessage = watch("dmMessage", "");
+  const dmLink = watch("dmLink", "");
+  const linkDeliveryMode = watch("linkDeliveryMode", "no_https");
   const matchType = watch("matchType", "contains");
   const publicReplyEnabled = watch("publicReply.enabled", false);
   const publicReplyMessage = watch("publicReply.message", "");
@@ -170,6 +212,8 @@ export default function AutomationSetup({
   const nonFollowerMessage = watch("followFlow.nonFollowerMessage", "");
   const followButtonText = watch("followFlow.followButtonText", "Follow Us");
   const afterFollowMessage = watch("followFlow.afterFollowMessage", "");
+  const shareTriggerEnabled = watch("shareTrigger.enabled", false);
+  const shareMessage = watch("shareTrigger.shareMessage", "");
   const isAnyMode = matchType === "any";
 
   useEffect(() => {
@@ -248,7 +292,7 @@ export default function AutomationSetup({
         Automation Setup
       </h3>
       <p className="text-sm text-text-muted font-jakarta mb-6">
-        Configure trigger keywords, follow flow, and automation rules.
+        Configure triggers, follow flow, share detection, and automation rules.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -454,7 +498,7 @@ export default function AutomationSetup({
               {followFlowEnabled && (
                 <p className="mt-1.5 text-[10px] text-amber-600 font-jakarta">
                   Note: When Follow Flow is enabled, follower/non-follower
-                  messages are used instead of this default message.
+                  messages are used instead.
                 </p>
               )}
             </div>
@@ -471,8 +515,114 @@ export default function AutomationSetup({
                 {...register("dmLink")}
               />
               <p className="mt-1 text-[10px] text-text-muted font-jakarta">
-                Appended to the DM after user follows / matches
+                Appended to the DM using your selected link delivery mode
               </p>
+            </div>
+
+            <div className="border-t border-border-light pt-5">
+              <SectionToggle
+                icon={HiOutlineShieldCheck}
+                title="Link Delivery Settings"
+                countLabel={dmLink ? linkDeliveryMode.replace("_", " ") : null}
+                open={linkSettingsOpen}
+                onToggle={() => setLinkSettingsOpen(!linkSettingsOpen)}
+                highlight={dmLink && linkDeliveryMode !== "direct"}
+              />
+
+              <AnimatePresence>
+                {linkSettingsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4 space-y-4">
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex gap-2">
+                          <HiOutlineExclamationTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-jakarta font-bold text-amber-900">
+                              Avoid Instagram Link Blocks
+                            </p>
+                            <p className="text-[11px] text-amber-800 font-jakarta mt-1 leading-relaxed">
+                              Instagram may block DMs with raw URLs. Choose a
+                              delivery mode to protect your account.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2">
+                        {LINK_DELIVERY_MODES.map((mode) => (
+                          <label
+                            key={mode.value}
+                            className={`relative flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                              linkDeliveryMode === mode.value
+                                ? "border-primary-mid bg-primary-lightest/30"
+                                : "border-border-light bg-surface-cream hover:border-primary-light"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              value={mode.value}
+                              className="mt-1 w-4 h-4 text-primary-mid focus:ring-primary-mid"
+                              {...register("linkDeliveryMode")}
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-jakarta font-semibold text-primary-darkest">
+                                  {mode.label}
+                                </span>
+                                {mode.badge && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[9px] font-jakarta font-bold uppercase">
+                                    {mode.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-text-muted font-jakarta mt-0.5">
+                                {mode.desc}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-primary-lightest/20 border border-primary-mid/20">
+                        <p className="text-[10px] font-jakarta font-bold text-primary-darkest uppercase tracking-wider mb-1">
+                          Preview
+                        </p>
+                        <p className="text-xs font-jakarta text-primary-darkest">
+                          {linkDeliveryMode === "no_https" && dmLink && (
+                            <>
+                              Link:{" "}
+                              {dmLink
+                                .replace(/^https?:\/\//i, "")
+                                .replace(/^www\./i, "")}
+                            </>
+                          )}
+                          {linkDeliveryMode === "direct" && dmLink && dmLink}
+                          {linkDeliveryMode === "delayed" && (
+                            <span className="italic text-text-muted">
+                              No link in first message
+                            </span>
+                          )}
+                          {linkDeliveryMode === "reply_first" && (
+                            <>
+                              Reply "SEND" and I will share the link with you!
+                            </>
+                          )}
+                          {!dmLink && (
+                            <span className="italic text-text-muted">
+                              Add a link above to see preview
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="border-t border-border-light pt-5">
@@ -506,7 +656,7 @@ export default function AutomationSetup({
                           </p>
                           <p className="text-xs text-text-muted font-jakarta">
                             Existing followers get resource instantly.
-                            Non-followers get follow button + retry logic.
+                            Non-followers get follow button + retry.
                           </p>
                         </div>
                       </label>
@@ -550,12 +700,11 @@ export default function AutomationSetup({
                               <textarea
                                 rows={2}
                                 className="w-full px-3 py-2 rounded-lg bg-white border border-emerald-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-emerald-400 transition-all resize-none"
-                                placeholder="Thanks for commenting! Here's your resource:"
+                                placeholder="Thanks for commenting! Here is your resource:"
                                 {...register("followFlow.followerMessage")}
                               />
                               <p className="mt-1 text-[10px] text-emerald-700 font-jakarta">
-                                {followerMessage?.length || 0}/1000 - Sent
-                                instantly if user already follows
+                                {followerMessage?.length || 0}/1000
                               </p>
                             </div>
 
@@ -596,7 +745,7 @@ export default function AutomationSetup({
                               <textarea
                                 rows={2}
                                 className="w-full px-3 py-2 rounded-lg bg-white border border-sky-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-sky-400 transition-all resize-none"
-                                placeholder="Awesome! Here's your resource:"
+                                placeholder="Awesome! Here is your resource:"
                                 {...register("followFlow.afterFollowMessage")}
                               />
                               <p className="mt-1 text-[10px] text-sky-700 font-jakarta">
@@ -626,6 +775,113 @@ export default function AutomationSetup({
                                   valueAsNumber: true,
                                 })}
                               />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="border-t border-border-light pt-5">
+              <SectionToggle
+                icon={HiOutlineShare}
+                title="Share Trigger (NEW)"
+                countLabel={shareTriggerEnabled ? "Active" : null}
+                open={shareTriggerOpen}
+                onToggle={() => setShareTriggerOpen(!shareTriggerOpen)}
+                highlight={shareTriggerEnabled}
+              />
+
+              <AnimatePresence>
+                {shareTriggerOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4 space-y-4">
+                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
+                          {...register("shareTrigger.enabled")}
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-jakarta font-semibold text-primary-darkest">
+                            Enable Share Trigger
+                          </p>
+                          <p className="text-xs text-text-muted font-jakarta">
+                            Send DM when someone shares your post to their DM or
+                            mentions in story
+                          </p>
+                        </div>
+                      </label>
+
+                      <AnimatePresence>
+                        {shareTriggerEnabled && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="space-y-3"
+                          >
+                            <div className="space-y-2">
+                              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-border-light cursor-pointer hover:border-primary-mid transition-all">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
+                                  {...register("shareTrigger.triggerOnDMShare")}
+                                />
+                                <div>
+                                  <p className="text-xs font-jakarta font-semibold text-primary-darkest">
+                                    DM Shares
+                                  </p>
+                                  <p className="text-[10px] text-text-muted font-jakarta">
+                                    When user shares post to their DM with you
+                                  </p>
+                                </div>
+                              </label>
+
+                              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-border-light cursor-pointer hover:border-primary-mid transition-all">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
+                                  {...register(
+                                    "shareTrigger.triggerOnStoryMention",
+                                  )}
+                                />
+                                <div>
+                                  <p className="text-xs font-jakarta font-semibold text-primary-darkest">
+                                    Story Mentions
+                                  </p>
+                                  <p className="text-[10px] text-text-muted font-jakarta">
+                                    When user mentions you in their story
+                                  </p>
+                                </div>
+                              </label>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-purple-50 border border-purple-200">
+                              <p className="text-xs font-jakarta font-bold text-purple-800 mb-2">
+                                Share Trigger Message
+                              </p>
+                              <textarea
+                                rows={3}
+                                className="w-full px-3 py-2 rounded-lg bg-white border border-purple-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-purple-400 transition-all resize-none"
+                                placeholder="Thanks for sharing! Here is your gift..."
+                                {...register("shareTrigger.shareMessage")}
+                              />
+                              <p className="mt-1 text-[10px] text-purple-700 font-jakarta">
+                                {shareMessage?.length || 0}/1000
+                              </p>
+                              <p className="mt-2 text-[10px] text-purple-600 font-jakarta italic">
+                                Note: If Follow Flow is enabled, share triggers
+                                will use follow flow messages instead
+                              </p>
                             </div>
                           </motion.div>
                         )}
@@ -1088,7 +1344,9 @@ export default function AutomationSetup({
                 <div className="flex justify-end">
                   <div className="max-w-[80%] bg-primary-lightest/40 rounded-2xl rounded-tr-md px-3 py-2">
                     <p className="text-xs font-jakarta text-primary-darkest">
-                      Commented "{previewKeyword}"
+                      {shareTriggerEnabled
+                        ? `Shared your post`
+                        : `Commented "${previewKeyword}"`}
                     </p>
                   </div>
                 </div>
@@ -1117,11 +1375,17 @@ export default function AutomationSetup({
                         </p>
                         <div className="bg-emerald-100 border border-emerald-200 rounded-2xl rounded-tl-md px-4 py-3">
                           <p className="text-xs font-jakarta text-emerald-900 whitespace-pre-wrap leading-relaxed">
-                            {followerMessage || "Thanks! Here's your resource:"}
+                            {followerMessage ||
+                              "Thanks! Here is your resource:"}
                           </p>
-                          {watch("dmLink") && (
+                          {dmLink && linkDeliveryMode === "no_https" && (
+                            <p className="text-[11px] font-jakarta text-emerald-700 mt-2 break-all">
+                              Link: {dmLink.replace(/^https?:\/\//i, "")}
+                            </p>
+                          )}
+                          {dmLink && linkDeliveryMode === "direct" && (
                             <p className="text-[11px] font-jakarta text-emerald-700 mt-2 underline break-all">
-                              {watch("dmLink")}
+                              {dmLink}
                             </p>
                           )}
                         </div>
@@ -1160,9 +1424,19 @@ export default function AutomationSetup({
                           <p className="text-xs font-jakarta text-white whitespace-pre-wrap leading-relaxed">
                             {dmMessage.replace(/\{\{username\}\}/g, "john_doe")}
                           </p>
-                          {watch("dmLink") && (
+                          {dmLink && linkDeliveryMode === "no_https" && (
+                            <p className="text-[11px] font-jakarta text-primary-lightest mt-2 break-all">
+                              Link: {dmLink.replace(/^https?:\/\//i, "")}
+                            </p>
+                          )}
+                          {dmLink && linkDeliveryMode === "direct" && (
                             <p className="text-[11px] font-jakarta text-primary-lightest mt-2 underline break-all">
-                              {watch("dmLink")}
+                              {dmLink}
+                            </p>
+                          )}
+                          {dmLink && linkDeliveryMode === "reply_first" && (
+                            <p className="text-[11px] font-jakarta text-primary-lightest mt-2 italic">
+                              Reply "SEND" to get the link
                             </p>
                           )}
                         </div>
@@ -1175,11 +1449,22 @@ export default function AutomationSetup({
           </div>
 
           <p className="mt-4 text-xs text-text-muted font-jakarta text-center">
-            When someone comments{" "}
-            <span className="font-bold text-primary-dark">
-              &quot;{previewKeyword}&quot;
-            </span>
-            , this flow runs.
+            {shareTriggerEnabled && !followFlowEnabled ? (
+              <>
+                Triggers on comments{" "}
+                <span className="font-bold text-primary-dark">
+                  and post shares
+                </span>
+              </>
+            ) : (
+              <>
+                When someone comments{" "}
+                <span className="font-bold text-primary-dark">
+                  &quot;{previewKeyword}&quot;
+                </span>
+                , this flow runs.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -1207,7 +1492,9 @@ function SectionToggle({
     >
       <div className="flex items-center gap-2">
         <Icon
-          className={`w-4 h-4 ${highlight ? "text-emerald-600" : "text-primary-dark"}`}
+          className={`w-4 h-4 ${
+            highlight ? "text-emerald-600" : "text-primary-dark"
+          }`}
         />
         <span className="text-sm font-jakarta font-semibold text-primary-darkest">
           {title}
