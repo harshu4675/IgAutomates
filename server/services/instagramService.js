@@ -311,3 +311,125 @@ export const pickDMTemplate = (campaign) => {
     index: randomIndex,
   };
 };
+export const sendDMWithButton = async (
+  igUserId,
+  recipientId,
+  message,
+  buttonText,
+  buttonUrl,
+  accessToken,
+  commentId = null,
+) => {
+  try {
+    logger.info(
+      `Sending DM with button: recipient=${recipientId}, url=${buttonUrl}`,
+    );
+
+    const recipient = commentId
+      ? { comment_id: commentId }
+      : { id: recipientId };
+
+    const payload = {
+      recipient,
+      message: {
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "button",
+            text: message,
+            buttons: [
+              {
+                type: "web_url",
+                url: buttonUrl,
+                title: buttonText,
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const response = await axios.post(`${INSTAGRAM_API}/me/messages`, payload, {
+      params: { access_token: accessToken },
+      headers: { "Content-Type": "application/json" },
+    });
+
+    logger.info(
+      `Button DM sent successfully. Message ID: ${response.data.message_id}`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error?.message ||
+      error.response?.data?.error?.error_user_msg ||
+      error.message;
+
+    const errorCode = error.response?.data?.error?.code;
+
+    logger.error(`Button DM failed: ${errorMessage} (code: ${errorCode})`);
+    logger.error(
+      `Full response: ${JSON.stringify(error.response?.data || {}).substring(0, 500)}`,
+    );
+
+    return {
+      success: false,
+      error: errorMessage,
+      errorCode,
+    };
+  }
+};
+
+export const checkIfUserFollows = async (
+  igUserId,
+  targetUserId,
+  accessToken,
+) => {
+  try {
+    logger.info(`Checking if user ${targetUserId} follows ${igUserId}`);
+
+    const response = await axios.get(`${INSTAGRAM_API}/${igUserId}`, {
+      params: {
+        access_token: accessToken,
+        fields: `business_discovery.username(${targetUserId}){id,username}`,
+      },
+    });
+
+    logger.info(
+      `Follow check response: ${JSON.stringify(response.data).substring(0, 200)}`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    logger.warn(
+      `Follow check unavailable: ${error.response?.data?.error?.message || error.message}`,
+    );
+    return {
+      success: false,
+      error: error.response?.data?.error?.message || error.message,
+    };
+  }
+};
+
+export const getUserProfile = async (userId, accessToken) => {
+  try {
+    const response = await axios.get(`${INSTAGRAM_API}/${userId}`, {
+      params: {
+        access_token: accessToken,
+        fields: "name,username,profile_pic",
+      },
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.error?.message || error.message,
+    };
+  }
+};

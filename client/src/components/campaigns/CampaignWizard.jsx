@@ -76,6 +76,13 @@ export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
       return;
     }
 
+    if (formData.followFlow?.enabled && !formData.followFlow?.profileUrl) {
+      setServerError(
+        "Instagram profile URL is required when Follow Flow is enabled",
+      );
+      return;
+    }
+
     const payload = {
       instagramAccount: selectedAccountId,
       name: formData.name,
@@ -103,31 +110,50 @@ export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
       dmDelay: formData.dmDelay || "short",
     };
 
-    if (formData.rateLimits) {
-      payload.rateLimits = {
-        enabled: Boolean(formData.rateLimits.enabled),
-        maxPerHour: Number(formData.rateLimits.maxPerHour) || 40,
-        maxPerDay: Number(formData.rateLimits.maxPerDay) || 200,
-        userCooldownMinutes:
-          Number(formData.rateLimits.userCooldownMinutes) || 2,
-        skipRepeatUsers:
-          formData.rateLimits.skipRepeatUsers === undefined
-            ? true
-            : Boolean(formData.rateLimits.skipRepeatUsers),
-        repeatUserHours: Number(formData.rateLimits.repeatUserHours) || 24,
+    if (formData.followFlow && formData.followFlow.enabled) {
+      payload.followFlow = {
+        enabled: true,
+        profileUrl: formData.followFlow.profileUrl || "",
+        followerMessage:
+          formData.followFlow.followerMessage ||
+          "Thanks for commenting! Here's your resource:",
+        nonFollowerMessage:
+          formData.followFlow.nonFollowerMessage ||
+          "Hey! Please follow us to get the resource. Tap the button below:",
+        followButtonText: formData.followFlow.followButtonText || "Follow Us",
+        afterFollowMessage:
+          formData.followFlow.afterFollowMessage ||
+          "Awesome! Thanks for following. Here's your resource:",
+        retryMessage:
+          formData.followFlow.retryMessage ||
+          "Still not following? Tap the button and follow us to unlock the resource!",
+        maxRetries: Number(formData.followFlow.maxRetries) || 3,
       };
     }
 
-    if (formData.schedule) {
+    if (formData.rateLimits && formData.rateLimits.enabled) {
+      payload.rateLimits = {
+        enabled: true,
+        maxPerHour: Number(formData.rateLimits.maxPerHour) || 40,
+        maxPerDay: Number(formData.rateLimits.maxPerDay) || 200,
+        userCooldownMinutes: 0,
+        skipRepeatUsers: false,
+        repeatUserHours: 24,
+      };
+    }
+
+    if (formData.schedule && formData.schedule.enabled) {
       payload.schedule = {
-        enabled: Boolean(formData.schedule.enabled),
+        enabled: true,
         startDate: formData.schedule.startDate || null,
         endDate: formData.schedule.endDate || null,
         activeHoursStart: formData.schedule.activeHoursStart || "00:00",
         activeHoursEnd: formData.schedule.activeHoursEnd || "23:59",
-        activeDays: Array.isArray(formData.schedule.activeDays)
-          ? formData.schedule.activeDays
-          : [0, 1, 2, 3, 4, 5, 6],
+        activeDays:
+          Array.isArray(formData.schedule.activeDays) &&
+          formData.schedule.activeDays.length > 0
+            ? formData.schedule.activeDays
+            : [0, 1, 2, 3, 4, 5, 6],
         timezone: formData.schedule.timezone || "UTC",
       };
     }

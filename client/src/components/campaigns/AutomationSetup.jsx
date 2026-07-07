@@ -15,9 +15,11 @@ import {
   HiOutlineBolt,
   HiOutlineCalendarDays,
   HiOutlineDocumentDuplicate,
+  HiOutlineHandRaised,
   HiPlus,
   HiXMark,
   HiOutlineTrash,
+  HiOutlineCheckBadge,
 } from "react-icons/hi2";
 
 const MATCH_TYPES = [
@@ -38,29 +40,17 @@ const DELAY_OPTIONS = [
 const RATE_LIMIT_PRESETS = [
   {
     label: "Conservative",
-    values: {
-      maxPerHour: 20,
-      maxPerDay: 100,
-      userCooldownMinutes: 5,
-    },
+    values: { maxPerHour: 20, maxPerDay: 100 },
     desc: "Safest for new accounts",
   },
   {
     label: "Moderate",
-    values: {
-      maxPerHour: 40,
-      maxPerDay: 200,
-      userCooldownMinutes: 2,
-    },
+    values: { maxPerHour: 40, maxPerDay: 200 },
     desc: "Recommended default",
   },
   {
     label: "Aggressive",
-    values: {
-      maxPerHour: 80,
-      maxPerDay: 400,
-      userCooldownMinutes: 1,
-    },
+    values: { maxPerHour: 80, maxPerDay: 400 },
     desc: "For verified accounts only",
   },
 ];
@@ -93,27 +83,15 @@ export default function AutomationSetup({
     if (defaultValues?.keywords && Array.isArray(defaultValues.keywords)) {
       return defaultValues.keywords;
     }
-    if (defaultValues?.keyword) {
-      return [defaultValues.keyword];
-    }
-    return [];
-  })();
-
-  const initialTemplates = (() => {
-    if (
-      defaultValues?.dmTemplates &&
-      Array.isArray(defaultValues.dmTemplates) &&
-      defaultValues.dmTemplates.length > 0
-    ) {
-      return defaultValues.dmTemplates;
-    }
+    if (defaultValues?.keyword) return [defaultValues.keyword];
     return [];
   })();
 
   const [keywords, setKeywords] = useState(initialKeywords);
   const [keywordInput, setKeywordInput] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [followFlowOpen, setFollowFlowOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [rateLimitsOpen, setRateLimitsOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
@@ -133,8 +111,20 @@ export default function AutomationSetup({
       dmTemplates: [],
       templateRotation: "random",
       requireFollow: false,
-      followMessage:
-        "Please follow us first! Once you follow, reply to this message with any word to get the link.",
+      followMessage: "",
+      followFlow: {
+        enabled: false,
+        profileUrl: "",
+        followerMessage: "Thanks for commenting! Here's your resource:",
+        nonFollowerMessage:
+          "Hey! Please follow us to get the resource. Tap the button below:",
+        followButtonText: "Follow Us",
+        afterFollowMessage:
+          "Awesome! Thanks for following. Here's your resource:",
+        retryMessage:
+          "Still not following? Tap the button and follow us to unlock the resource!",
+        maxRetries: 3,
+      },
       publicReply: {
         enabled: false,
         message: "Check your DMs!",
@@ -144,9 +134,6 @@ export default function AutomationSetup({
         enabled: false,
         maxPerHour: 40,
         maxPerDay: 200,
-        userCooldownMinutes: 2,
-        skipRepeatUsers: true,
-        repeatUserHours: 24,
       },
       schedule: {
         enabled: false,
@@ -171,14 +158,18 @@ export default function AutomationSetup({
 
   const dmMessage = watch("dmMessage", "");
   const matchType = watch("matchType", "contains");
-  const requireFollow = watch("requireFollow", false);
   const publicReplyEnabled = watch("publicReply.enabled", false);
-  const publicReplyMessage = watch("publicReply.message", "Check your DMs!");
-  const followMessage = watch("followMessage", "");
+  const publicReplyMessage = watch("publicReply.message", "");
   const dmDelay = watch("dmDelay", "short");
   const rateLimitsEnabled = watch("rateLimits.enabled", false);
   const scheduleEnabled = watch("schedule.enabled", false);
   const activeDays = watch("schedule.activeDays", []);
+  const followFlowEnabled = watch("followFlow.enabled", false);
+  const followFlowProfileUrl = watch("followFlow.profileUrl", "");
+  const followerMessage = watch("followFlow.followerMessage", "");
+  const nonFollowerMessage = watch("followFlow.nonFollowerMessage", "");
+  const followButtonText = watch("followFlow.followButtonText", "Follow Us");
+  const afterFollowMessage = watch("followFlow.afterFollowMessage", "");
   const isAnyMode = matchType === "any";
 
   useEffect(() => {
@@ -195,16 +186,12 @@ export default function AutomationSetup({
     const clean = String(value || "")
       .toLowerCase()
       .trim();
-    if (!clean) return;
-    if (keywords.includes(clean)) return;
-    if (clean.length > 50) return;
+    if (!clean || keywords.includes(clean) || clean.length > 50) return;
     setKeywords([...keywords, clean]);
     setKeywordInput("");
   };
 
-  const removeKeyword = (kw) => {
-    setKeywords(keywords.filter((k) => k !== kw));
-  };
+  const removeKeyword = (kw) => setKeywords(keywords.filter((k) => k !== kw));
 
   const handleKeywordKeyDown = (e) => {
     if (e.key === "Enter" || e.key === ",") {
@@ -218,10 +205,6 @@ export default function AutomationSetup({
   const applyRateLimitPreset = (preset) => {
     setValue("rateLimits.maxPerHour", preset.values.maxPerHour);
     setValue("rateLimits.maxPerDay", preset.values.maxPerDay);
-    setValue(
-      "rateLimits.userCooldownMinutes",
-      preset.values.userCooldownMinutes,
-    );
   };
 
   const toggleDay = (day) => {
@@ -239,6 +222,11 @@ export default function AutomationSetup({
   const handleFormSubmit = (data) => {
     if (!isAnyMode && keywords.length === 0) return;
 
+    if (data.followFlow?.enabled && !data.followFlow?.profileUrl) {
+      alert("Please enter your Instagram profile URL for Follow Flow");
+      return;
+    }
+
     const cleanTemplates = (data.dmTemplates || [])
       .filter((t) => t?.message && t.message.trim().length >= 10)
       .map((t) => ({ message: t.message.trim(), timesUsed: t.timesUsed || 0 }));
@@ -252,15 +240,7 @@ export default function AutomationSetup({
   };
 
   const previewKeyword = isAnyMode ? "any word" : keywords[0] || "keyword";
-
-  const advancedCount =
-    (requireFollow ? 1 : 0) +
-    (publicReplyEnabled ? 1 : 0) +
-    (dmDelay !== "short" ? 1 : 0);
-
   const templateCount = templateFields.length;
-  const scheduleActive = scheduleEnabled ? 1 : 0;
-  const rateLimitActive = rateLimitsEnabled ? 1 : 0;
 
   return (
     <div>
@@ -268,8 +248,7 @@ export default function AutomationSetup({
         Automation Setup
       </h3>
       <p className="text-sm text-text-muted font-jakarta mb-6">
-        Configure trigger keywords, message templates, and advanced automation
-        rules.
+        Configure trigger keywords, follow flow, and automation rules.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -358,14 +337,13 @@ export default function AutomationSetup({
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
                 >
                   <label className="block text-xs font-jakarta font-semibold text-primary-darkest mb-2 uppercase tracking-wider">
                     <HiOutlineHashtag className="inline w-3 h-3 mr-1" />
                     Trigger Keywords
                   </label>
 
-                  <div className="min-h-[52px] w-full px-3 py-2 rounded-xl bg-surface-cream border border-border-light text-sm font-jakarta focus-within:border-primary-mid focus-within:ring-2 focus-within:ring-primary-mid/20 transition-all">
+                  <div className="min-h-[52px] w-full px-3 py-2 rounded-xl bg-surface-cream border border-border-light focus-within:border-primary-mid focus-within:ring-2 focus-within:ring-primary-mid/20 transition-all">
                     <div className="flex flex-wrap gap-2 items-center">
                       {keywords.map((kw) => (
                         <motion.span
@@ -421,7 +399,6 @@ export default function AutomationSetup({
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
                   className="p-4 rounded-xl bg-gradient-to-br from-primary-lightest/40 to-primary-light/20 border border-primary-mid/30"
                 >
                   <div className="flex gap-3">
@@ -433,8 +410,7 @@ export default function AutomationSetup({
                         Auto-reply to every comment
                       </p>
                       <p className="text-xs text-text-muted font-jakarta mt-1 leading-relaxed">
-                        This campaign will send a DM to anyone who comments on
-                        the selected post.
+                        This campaign will send a DM to anyone who comments.
                       </p>
                     </div>
                   </div>
@@ -446,7 +422,7 @@ export default function AutomationSetup({
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-jakarta font-semibold text-primary-darkest uppercase tracking-wider">
                   <HiOutlineChatBubbleLeftRight className="inline w-3 h-3 mr-1" />
-                  DM Message (Default)
+                  Default DM Message
                 </label>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary-lightest/40 text-[10px] font-jakarta font-semibold text-primary-dark">
                   <HiOutlineVariable className="w-3 h-3" />
@@ -475,12 +451,18 @@ export default function AutomationSetup({
                   {dmMessage.length}/1000
                 </p>
               </div>
+              {followFlowEnabled && (
+                <p className="mt-1.5 text-[10px] text-amber-600 font-jakarta">
+                  Note: When Follow Flow is enabled, follower/non-follower
+                  messages are used instead of this default message.
+                </p>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-jakarta font-semibold text-primary-darkest mb-2 uppercase tracking-wider">
                 <HiOutlineLink className="inline w-3 h-3 mr-1" />
-                Link (optional)
+                Resource Link (optional)
               </label>
               <input
                 type="url"
@@ -488,13 +470,176 @@ export default function AutomationSetup({
                 placeholder="https://example.com/product"
                 {...register("dmLink")}
               />
+              <p className="mt-1 text-[10px] text-text-muted font-jakarta">
+                Appended to the DM after user follows / matches
+              </p>
+            </div>
+
+            <div className="border-t border-border-light pt-5">
+              <SectionToggle
+                icon={HiOutlineHandRaised}
+                title="Follow Flow (Smart Growth)"
+                countLabel={followFlowEnabled ? "Active" : null}
+                open={followFlowOpen}
+                onToggle={() => setFollowFlowOpen(!followFlowOpen)}
+                highlight={followFlowEnabled}
+              />
+
+              <AnimatePresence>
+                {followFlowOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4 space-y-4">
+                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
+                          {...register("followFlow.enabled")}
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-jakarta font-semibold text-primary-darkest">
+                            Enable Follow Flow
+                          </p>
+                          <p className="text-xs text-text-muted font-jakarta">
+                            Existing followers get resource instantly.
+                            Non-followers get follow button + retry logic.
+                          </p>
+                        </div>
+                      </label>
+
+                      <AnimatePresence>
+                        {followFlowEnabled && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="space-y-4"
+                          >
+                            <div>
+                              <label className="block text-[10px] font-jakarta font-bold text-primary-darkest uppercase tracking-wider mb-1">
+                                Your Instagram Profile URL *
+                              </label>
+                              <input
+                                type="url"
+                                className={`w-full px-3 py-2.5 rounded-lg bg-surface-cream border text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-primary-mid focus:ring-2 focus:ring-primary-mid/20 transition-all ${
+                                  followFlowEnabled && !followFlowProfileUrl
+                                    ? "border-red-300"
+                                    : "border-border-light"
+                                }`}
+                                placeholder="https://instagram.com/yourprofile"
+                                {...register("followFlow.profileUrl")}
+                              />
+                              {followFlowEnabled && !followFlowProfileUrl && (
+                                <p className="mt-1 text-[10px] text-red-500 font-jakarta">
+                                  Required when Follow Flow is enabled
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <HiOutlineCheckBadge className="w-4 h-4 text-emerald-600" />
+                                <p className="text-xs font-jakarta font-bold text-emerald-800">
+                                  Message for Existing Followers
+                                </p>
+                              </div>
+                              <textarea
+                                rows={2}
+                                className="w-full px-3 py-2 rounded-lg bg-white border border-emerald-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-emerald-400 transition-all resize-none"
+                                placeholder="Thanks for commenting! Here's your resource:"
+                                {...register("followFlow.followerMessage")}
+                              />
+                              <p className="mt-1 text-[10px] text-emerald-700 font-jakarta">
+                                {followerMessage?.length || 0}/1000 - Sent
+                                instantly if user already follows
+                              </p>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <HiOutlineUserPlus className="w-4 h-4 text-amber-600" />
+                                <p className="text-xs font-jakarta font-bold text-amber-800">
+                                  Message for Non-Followers (with Button)
+                                </p>
+                              </div>
+                              <textarea
+                                rows={2}
+                                className="w-full px-3 py-2 rounded-lg bg-white border border-amber-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-amber-400 transition-all resize-none mb-2"
+                                placeholder="Hey! Follow us to get the resource..."
+                                {...register("followFlow.nonFollowerMessage")}
+                              />
+                              <label className="block text-[10px] font-jakarta font-bold text-amber-800 uppercase tracking-wider mb-1">
+                                Follow Button Text (max 20 chars)
+                              </label>
+                              <input
+                                className="w-full px-3 py-2 rounded-lg bg-white border border-amber-200 text-xs font-jakarta text-primary-darkest"
+                                placeholder="Follow Us"
+                                maxLength={20}
+                                {...register("followFlow.followButtonText")}
+                              />
+                              <p className="mt-1 text-[10px] text-amber-700 font-jakarta">
+                                {nonFollowerMessage?.length || 0}/1000
+                              </p>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-sky-50 border border-sky-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <HiOutlineCheckBadge className="w-4 h-4 text-sky-600" />
+                                <p className="text-xs font-jakarta font-bold text-sky-800">
+                                  After User Follows (Success Message)
+                                </p>
+                              </div>
+                              <textarea
+                                rows={2}
+                                className="w-full px-3 py-2 rounded-lg bg-white border border-sky-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-sky-400 transition-all resize-none"
+                                placeholder="Awesome! Here's your resource:"
+                                {...register("followFlow.afterFollowMessage")}
+                              />
+                              <p className="mt-1 text-[10px] text-sky-700 font-jakarta">
+                                {afterFollowMessage?.length || 0}/1000
+                              </p>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200">
+                              <p className="text-xs font-jakarta font-bold text-rose-800 mb-2">
+                                Retry Message (if user still not following)
+                              </p>
+                              <textarea
+                                rows={2}
+                                className="w-full px-3 py-2 rounded-lg bg-white border border-rose-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-rose-400 transition-all resize-none mb-2"
+                                placeholder="Still not following? Tap follow button..."
+                                {...register("followFlow.retryMessage")}
+                              />
+                              <label className="block text-[10px] font-jakarta font-bold text-rose-800 uppercase tracking-wider mb-1">
+                                Max Retries
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                className="w-24 px-3 py-2 rounded-lg bg-white border border-rose-200 text-xs font-jakarta"
+                                {...register("followFlow.maxRetries", {
+                                  valueAsNumber: true,
+                                })}
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="border-t border-border-light pt-5">
               <SectionToggle
                 icon={HiOutlineDocumentDuplicate}
                 title="Message Templates"
-                count={templateCount}
                 countLabel={
                   templateCount > 0 ? `${templateCount} templates` : null
                 }
@@ -513,9 +658,8 @@ export default function AutomationSetup({
                     <div className="pt-4 space-y-3">
                       <div className="p-3 rounded-xl bg-primary-lightest/20 border border-primary-mid/20">
                         <p className="text-xs text-primary-dark font-jakarta leading-relaxed">
-                          Add message variations to rotate between. This helps
-                          avoid spam detection and looks more natural. The
-                          default message is used if no templates are added.
+                          Add message variations to rotate between. Helps avoid
+                          spam detection. Default message used if no templates.
                         </p>
                       </div>
 
@@ -545,12 +689,7 @@ export default function AutomationSetup({
                             rows={3}
                             className="w-full px-3 py-2 rounded-lg bg-surface-cream border border-border-light text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-primary-mid focus:ring-2 focus:ring-primary-mid/20 transition-all resize-none"
                             placeholder="Template message..."
-                            {...register(`dmTemplates.${index}.message`, {
-                              minLength: {
-                                value: 10,
-                                message: "Min 10 chars",
-                              },
-                            })}
+                            {...register(`dmTemplates.${index}.message`)}
                           />
                         </div>
                       ))}
@@ -573,16 +712,8 @@ export default function AutomationSetup({
                           </label>
                           <div className="grid grid-cols-2 gap-2">
                             {[
-                              {
-                                value: "random",
-                                label: "Random",
-                                desc: "Pick randomly",
-                              },
-                              {
-                                value: "sequential",
-                                label: "Sequential",
-                                desc: "In order",
-                              },
+                              { value: "random", label: "Random" },
+                              { value: "sequential", label: "Sequential" },
                             ].map((opt) => (
                               <label
                                 key={opt.value}
@@ -601,9 +732,6 @@ export default function AutomationSetup({
                                 <p className="text-xs font-jakarta font-semibold text-primary-darkest">
                                   {opt.label}
                                 </p>
-                                <p className="text-[10px] text-text-muted font-jakarta">
-                                  {opt.desc}
-                                </p>
                               </label>
                             ))}
                           </div>
@@ -619,10 +747,6 @@ export default function AutomationSetup({
               <SectionToggle
                 icon={HiOutlineCog6Tooth}
                 title="Advanced Options"
-                count={advancedCount}
-                countLabel={
-                  advancedCount > 0 ? `${advancedCount} enabled` : null
-                }
                 open={advancedOpen}
                 onToggle={() => setAdvancedOpen(!advancedOpen)}
               />
@@ -641,49 +765,6 @@ export default function AutomationSetup({
                           <input
                             type="checkbox"
                             className="mt-1 w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
-                            {...register("requireFollow")}
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <HiOutlineUserPlus className="w-4 h-4 text-primary-dark" />
-                              <span className="text-sm font-jakarta font-semibold text-primary-darkest">
-                                Require Follow Before DM
-                              </span>
-                            </div>
-                            <p className="text-xs text-text-muted font-jakarta mt-1 leading-relaxed">
-                              Send follow request first. Actual link sent after
-                              user replies to that DM.
-                            </p>
-                          </div>
-                        </label>
-
-                        <AnimatePresence>
-                          {requireFollow && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="mt-3 pl-7"
-                            >
-                              <textarea
-                                rows={3}
-                                className="w-full px-3 py-2.5 rounded-lg bg-surface-cream border border-border-light text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-primary-mid focus:ring-2 focus:ring-primary-mid/20 transition-all resize-none"
-                                placeholder="Please follow us first..."
-                                {...register("followMessage")}
-                              />
-                              <p className="mt-1 text-[10px] text-text-muted font-jakarta">
-                                {followMessage?.length || 0}/1000
-                              </p>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
-                      <div className="p-4 rounded-xl border border-border-light bg-white">
-                        <label className="flex items-start gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="mt-1 w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
                             {...register("publicReply.enabled")}
                           />
                           <div className="flex-1">
@@ -693,7 +774,7 @@ export default function AutomationSetup({
                                 Reply Publicly to Comment
                               </span>
                             </div>
-                            <p className="text-xs text-text-muted font-jakarta mt-1 leading-relaxed">
+                            <p className="text-xs text-text-muted font-jakarta mt-1">
                               Post a public reply in addition to sending DM.
                             </p>
                           </div>
@@ -764,7 +845,6 @@ export default function AutomationSetup({
               <SectionToggle
                 icon={HiOutlineBolt}
                 title="Rate Limits"
-                count={rateLimitActive}
                 countLabel={rateLimitsEnabled ? "Active" : null}
                 open={rateLimitsOpen}
                 onToggle={() => setRateLimitsOpen(!rateLimitsOpen)}
@@ -790,7 +870,7 @@ export default function AutomationSetup({
                             Enable Rate Limits
                           </p>
                           <p className="text-xs text-text-muted font-jakarta">
-                            Prevent Instagram bans by limiting DM frequency
+                            Cap DMs per hour/day to prevent Instagram bans
                           </p>
                         </div>
                       </label>
@@ -803,27 +883,22 @@ export default function AutomationSetup({
                             exit={{ opacity: 0, height: 0 }}
                             className="space-y-3"
                           >
-                            <div>
-                              <p className="text-[10px] font-jakarta font-bold text-primary-darkest uppercase tracking-wider mb-2">
-                                Presets
-                              </p>
-                              <div className="grid grid-cols-3 gap-2">
-                                {RATE_LIMIT_PRESETS.map((preset) => (
-                                  <button
-                                    key={preset.label}
-                                    type="button"
-                                    onClick={() => applyRateLimitPreset(preset)}
-                                    className="p-2 rounded-lg border-2 border-border-light bg-surface-cream hover:border-primary-mid transition-all"
-                                  >
-                                    <p className="text-xs font-jakarta font-semibold text-primary-darkest">
-                                      {preset.label}
-                                    </p>
-                                    <p className="text-[9px] text-text-muted font-jakarta">
-                                      {preset.desc}
-                                    </p>
-                                  </button>
-                                ))}
-                              </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              {RATE_LIMIT_PRESETS.map((preset) => (
+                                <button
+                                  key={preset.label}
+                                  type="button"
+                                  onClick={() => applyRateLimitPreset(preset)}
+                                  className="p-2 rounded-lg border-2 border-border-light bg-surface-cream hover:border-primary-mid transition-all"
+                                >
+                                  <p className="text-xs font-jakarta font-semibold text-primary-darkest">
+                                    {preset.label}
+                                  </p>
+                                  <p className="text-[9px] text-text-muted font-jakarta">
+                                    {preset.desc}
+                                  </p>
+                                </button>
+                              ))}
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
@@ -855,47 +930,7 @@ export default function AutomationSetup({
                                   })}
                                 />
                               </div>
-                              <div>
-                                <label className="block text-[10px] font-jakarta font-bold text-primary-darkest uppercase tracking-wider mb-1">
-                                  User Cooldown (min)
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="1440"
-                                  className="w-full px-3 py-2 rounded-lg bg-surface-cream border border-border-light text-xs font-jakarta"
-                                  {...register(
-                                    "rateLimits.userCooldownMinutes",
-                                    { valueAsNumber: true },
-                                  )}
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] font-jakarta font-bold text-primary-darkest uppercase tracking-wider mb-1">
-                                  Repeat Block (hrs)
-                                </label>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  max="720"
-                                  className="w-full px-3 py-2 rounded-lg bg-surface-cream border border-border-light text-xs font-jakarta"
-                                  {...register("rateLimits.repeatUserHours", {
-                                    valueAsNumber: true,
-                                  })}
-                                />
-                              </div>
                             </div>
-
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
-                                {...register("rateLimits.skipRepeatUsers")}
-                              />
-                              <span className="text-xs font-jakarta text-primary-darkest">
-                                Skip users who got DM in last 24 hours
-                              </span>
-                            </label>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -909,7 +944,6 @@ export default function AutomationSetup({
               <SectionToggle
                 icon={HiOutlineCalendarDays}
                 title="Schedule"
-                count={scheduleActive}
                 countLabel={scheduleEnabled ? "Active" : null}
                 open={scheduleOpen}
                 onToggle={() => setScheduleOpen(!scheduleOpen)}
@@ -971,7 +1005,7 @@ export default function AutomationSetup({
                               </div>
                               <div>
                                 <label className="block text-[10px] font-jakarta font-bold text-primary-darkest uppercase tracking-wider mb-1">
-                                  Active Hours From
+                                  Active From
                                 </label>
                                 <input
                                   type="time"
@@ -981,7 +1015,7 @@ export default function AutomationSetup({
                               </div>
                               <div>
                                 <label className="block text-[10px] font-jakarta font-bold text-primary-darkest uppercase tracking-wider mb-1">
-                                  Active Hours To
+                                  Active To
                                 </label>
                                 <input
                                   type="time"
@@ -1050,15 +1084,11 @@ export default function AutomationSetup({
                 </div>
               </div>
 
-              <div className="p-4 space-y-3 min-h-[280px] bg-surface-cream/30">
+              <div className="p-4 space-y-3 min-h-[320px] bg-surface-cream/30">
                 <div className="flex justify-end">
                   <div className="max-w-[80%] bg-primary-lightest/40 rounded-2xl rounded-tr-md px-3 py-2">
                     <p className="text-xs font-jakarta text-primary-darkest">
-                      {isAnyMode
-                        ? "Any comment on your post"
-                        : keywords.length > 0
-                          ? `Commented "${keywords[0]}" on your post`
-                          : "User comments trigger keyword..."}
+                      Commented "{previewKeyword}"
                     </p>
                   </div>
                 </div>
@@ -1078,46 +1108,67 @@ export default function AutomationSetup({
                   </div>
                 )}
 
-                {requireFollow && followMessage && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%]">
-                      <p className="text-[9px] font-jakarta text-text-muted mb-1">
-                        Follow request DM
-                      </p>
-                      <div className="bg-amber-100 border border-amber-200 rounded-2xl rounded-tl-md px-4 py-3">
-                        <p className="text-xs font-jakarta text-amber-900 whitespace-pre-wrap leading-relaxed">
-                          {followMessage}
+                {followFlowEnabled ? (
+                  <>
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%]">
+                        <p className="text-[9px] font-jakarta text-emerald-600 mb-1 font-semibold">
+                          If already follower
                         </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {dmMessage && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%]">
-                      {requireFollow && (
-                        <p className="text-[9px] font-jakarta text-text-muted mb-1">
-                          Sent after user replies
-                        </p>
-                      )}
-                      {templateCount > 0 && (
-                        <p className="text-[9px] font-jakarta text-text-muted mb-1">
-                          Rotates between {templateCount + 1} messages
-                        </p>
-                      )}
-                      <div className="bg-gradient-cta rounded-2xl rounded-tl-md px-4 py-3 shadow-button">
-                        <p className="text-xs font-jakarta text-white whitespace-pre-wrap leading-relaxed">
-                          {dmMessage.replace(/\{\{username\}\}/g, "john_doe")}
-                        </p>
-                        {watch("dmLink") && (
-                          <p className="text-[11px] font-jakarta text-primary-lightest mt-2 underline break-all">
-                            {watch("dmLink")}
+                        <div className="bg-emerald-100 border border-emerald-200 rounded-2xl rounded-tl-md px-4 py-3">
+                          <p className="text-xs font-jakarta text-emerald-900 whitespace-pre-wrap leading-relaxed">
+                            {followerMessage || "Thanks! Here's your resource:"}
                           </p>
-                        )}
+                          {watch("dmLink") && (
+                            <p className="text-[11px] font-jakarta text-emerald-700 mt-2 underline break-all">
+                              {watch("dmLink")}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
+
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%]">
+                        <p className="text-[9px] font-jakarta text-amber-600 mb-1 font-semibold">
+                          If NOT following
+                        </p>
+                        <div className="bg-amber-50 border border-amber-200 rounded-2xl rounded-tl-md overflow-hidden">
+                          <div className="px-4 py-3">
+                            <p className="text-xs font-jakarta text-amber-900 whitespace-pre-wrap leading-relaxed">
+                              {nonFollowerMessage ||
+                                "Please follow us first..."}
+                            </p>
+                          </div>
+                          <div className="border-t border-amber-200 px-4 py-2.5 bg-white">
+                            <button
+                              type="button"
+                              className="w-full py-2 rounded-lg bg-gradient-cta text-white text-xs font-jakarta font-semibold shadow-button"
+                            >
+                              {followButtonText || "Follow Us"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  dmMessage && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%]">
+                        <div className="bg-gradient-cta rounded-2xl rounded-tl-md px-4 py-3 shadow-button">
+                          <p className="text-xs font-jakarta text-white whitespace-pre-wrap leading-relaxed">
+                            {dmMessage.replace(/\{\{username\}\}/g, "john_doe")}
+                          </p>
+                          {watch("dmLink") && (
+                            <p className="text-[11px] font-jakarta text-primary-lightest mt-2 underline break-all">
+                              {watch("dmLink")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
             </div>
@@ -1128,7 +1179,7 @@ export default function AutomationSetup({
             <span className="font-bold text-primary-dark">
               &quot;{previewKeyword}&quot;
             </span>
-            , this flow will run.
+            , this flow runs.
           </p>
         </div>
       </div>
@@ -1136,20 +1187,39 @@ export default function AutomationSetup({
   );
 }
 
-function SectionToggle({ icon: Icon, title, countLabel, open, onToggle }) {
+function SectionToggle({
+  icon: Icon,
+  title,
+  countLabel,
+  open,
+  onToggle,
+  highlight,
+}) {
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="w-full flex items-center justify-between p-3 rounded-xl bg-surface-cream border border-border-light hover:border-primary-mid transition-all"
+      className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
+        highlight
+          ? "bg-emerald-50 border-emerald-300 hover:border-emerald-400"
+          : "bg-surface-cream border-border-light hover:border-primary-mid"
+      }`}
     >
       <div className="flex items-center gap-2">
-        <Icon className="w-4 h-4 text-primary-dark" />
+        <Icon
+          className={`w-4 h-4 ${highlight ? "text-emerald-600" : "text-primary-dark"}`}
+        />
         <span className="text-sm font-jakarta font-semibold text-primary-darkest">
           {title}
         </span>
         {countLabel && (
-          <span className="px-2 py-0.5 rounded-md bg-primary-mid/20 text-[10px] font-jakarta font-bold text-primary-dark">
+          <span
+            className={`px-2 py-0.5 rounded-md text-[10px] font-jakarta font-bold ${
+              highlight
+                ? "bg-emerald-200 text-emerald-800"
+                : "bg-primary-mid/20 text-primary-dark"
+            }`}
+          >
             {countLabel}
           </span>
         )}

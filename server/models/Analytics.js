@@ -32,33 +32,21 @@ const analyticsSchema = new mongoose.Schema(
         "schedule_skip",
         "repeat_user_skip",
         "cooldown_skip",
+        "follow_button_sent",
+        "follow_button_clicked",
+        "follow_verified",
+        "follow_retry_sent",
+        "already_follower_dm",
       ],
       required: true,
     },
-    commentId: {
-      type: String,
-      default: "",
-    },
-    commentText: {
-      type: String,
-      default: "",
-    },
-    fromUserId: {
-      type: String,
-      default: "",
-    },
-    fromUsername: {
-      type: String,
-      default: "",
-    },
-    metadata: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-    },
+    commentId: { type: String, default: "" },
+    commentText: { type: String, default: "" },
+    fromUserId: { type: String, default: "" },
+    fromUsername: { type: String, default: "" },
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 analyticsSchema.index({ user: 1, createdAt: -1 });

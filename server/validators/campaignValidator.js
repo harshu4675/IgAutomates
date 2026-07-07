@@ -15,8 +15,7 @@ export const createCampaignValidation = [
   body("igPostId").notEmpty().withMessage("Post is required"),
   body("matchType")
     .optional()
-    .isIn(["exact", "contains", "any", "starts_with", "ends_with"])
-    .withMessage("Invalid match type"),
+    .isIn(["exact", "contains", "any", "starts_with", "ends_with"]),
   body("keywords").optional().isArray(),
   body("keywords.*").optional().isString().isLength({ min: 1, max: 50 }),
   body("keyword").optional().isString().isLength({ max: 50 }),
@@ -58,6 +57,31 @@ export const createCampaignValidation = [
     }),
   body("requireFollow").optional().isBoolean(),
   body("followMessage").optional().trim().isLength({ max: 1000 }),
+  body("followFlow").optional().isObject(),
+  body("followFlow.enabled").optional().isBoolean(),
+  body("followFlow.profileUrl")
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (!value) return true;
+      try {
+        new URL(value);
+        return true;
+      } catch {
+        throw new Error("Invalid profile URL");
+      }
+    }),
+  body("followFlow.followerMessage").optional().trim().isLength({ max: 1000 }),
+  body("followFlow.nonFollowerMessage")
+    .optional()
+    .trim()
+    .isLength({ max: 1000 }),
+  body("followFlow.followButtonText").optional().trim().isLength({ max: 20 }),
+  body("followFlow.afterFollowMessage")
+    .optional()
+    .trim()
+    .isLength({ max: 1000 }),
+  body("followFlow.retryMessage").optional().trim().isLength({ max: 1000 }),
+  body("followFlow.maxRetries").optional().isInt({ min: 1, max: 10 }),
   body("publicReply").optional().isObject(),
   body("publicReply.enabled").optional().isBoolean(),
   body("publicReply.message").optional().trim().isLength({ max: 300 }),
@@ -66,15 +90,10 @@ export const createCampaignValidation = [
   body("rateLimits.enabled").optional().isBoolean(),
   body("rateLimits.maxPerHour").optional().isInt({ min: 1, max: 1000 }),
   body("rateLimits.maxPerDay").optional().isInt({ min: 1, max: 10000 }),
-  body("rateLimits.userCooldownMinutes")
-    .optional()
-    .isInt({ min: 0, max: 1440 }),
-  body("rateLimits.skipRepeatUsers").optional().isBoolean(),
-  body("rateLimits.repeatUserHours").optional().isInt({ min: 1, max: 720 }),
   body("schedule").optional().isObject(),
   body("schedule.enabled").optional().isBoolean(),
-  body("schedule.startDate").optional(),
-  body("schedule.endDate").optional(),
+  body("schedule.startDate").optional({ nullable: true, checkFalsy: true }),
+  body("schedule.endDate").optional({ nullable: true, checkFalsy: true }),
   body("schedule.activeHoursStart").optional().isString(),
   body("schedule.activeHoursEnd").optional().isString(),
   body("schedule.activeDays").optional().isArray(),
@@ -100,6 +119,7 @@ export const updateCampaignValidation = [
   body("isActive").optional().isBoolean(),
   body("requireFollow").optional().isBoolean(),
   body("followMessage").optional().trim().isLength({ max: 1000 }),
+  body("followFlow").optional().isObject(),
   body("publicReply").optional().isObject(),
   body("dmDelay").optional().isIn(["instant", "short", "medium", "long"]),
   body("rateLimits").optional().isObject(),

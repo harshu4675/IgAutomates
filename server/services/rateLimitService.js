@@ -52,44 +52,6 @@ export const checkRateLimits = async (campaign, recipientId) => {
     };
   }
 
-  if (limits.userCooldownMinutes > 0) {
-    const cooldownMs = limits.userCooldownMinutes * 60 * 1000;
-    const cooldownSince = new Date(Date.now() - cooldownMs);
-
-    const recentDM = await DMHistory.findOne({
-      campaign: campaign._id,
-      recipientId,
-      sentAt: { $gte: cooldownSince },
-    }).sort({ sentAt: -1 });
-
-    if (recentDM) {
-      return {
-        allowed: false,
-        reason: "user_cooldown",
-        message: `User in ${limits.userCooldownMinutes}min cooldown`,
-      };
-    }
-  }
-
-  if (limits.skipRepeatUsers && limits.repeatUserHours > 0) {
-    const repeatWindowMs = limits.repeatUserHours * 60 * 60 * 1000;
-    const repeatSince = new Date(Date.now() - repeatWindowMs);
-
-    const previousDM = await DMHistory.findOne({
-      user: campaign.user,
-      recipientId,
-      sentAt: { $gte: repeatSince },
-    }).sort({ sentAt: -1 });
-
-    if (previousDM) {
-      return {
-        allowed: false,
-        reason: "repeat_user",
-        message: `User already got DM in last ${limits.repeatUserHours}h`,
-      };
-    }
-  }
-
   return { allowed: true, reason: "within_limits" };
 };
 

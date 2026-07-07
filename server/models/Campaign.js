@@ -19,22 +19,10 @@ const campaignSchema = new mongoose.Schema(
       trim: true,
       maxlength: 200,
     },
-    igPostId: {
-      type: String,
-      required: true,
-    },
-    igPostUrl: {
-      type: String,
-      default: "",
-    },
-    igPostThumbnail: {
-      type: String,
-      default: "",
-    },
-    igPostCaption: {
-      type: String,
-      default: "",
-    },
+    igPostId: { type: String, required: true },
+    igPostUrl: { type: String, default: "" },
+    igPostThumbnail: { type: String, default: "" },
+    igPostCaption: { type: String, default: "" },
     igPostType: {
       type: String,
       enum: ["IMAGE", "VIDEO", "CAROUSEL_ALBUM", "REEL"],
@@ -48,12 +36,7 @@ const campaignSchema = new mongoose.Schema(
           ? arr.map((k) => String(k).toLowerCase().trim()).filter(Boolean)
           : [],
     },
-    keyword: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: "",
-    },
+    keyword: { type: String, trim: true, lowercase: true, default: "" },
     matchType: {
       type: String,
       enum: ["exact", "contains", "any", "starts_with", "ends_with"],
@@ -74,10 +57,7 @@ const campaignSchema = new mongoose.Schema(
             trim: true,
             maxlength: 1000,
           },
-          timesUsed: {
-            type: Number,
-            default: 0,
-          },
+          timesUsed: { type: Number, default: 0 },
         },
       ],
       default: [],
@@ -87,19 +67,9 @@ const campaignSchema = new mongoose.Schema(
       enum: ["random", "sequential"],
       default: "random",
     },
-    lastTemplateIndex: {
-      type: Number,
-      default: -1,
-    },
-    dmLink: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    requireFollow: {
-      type: Boolean,
-      default: false,
-    },
+    lastTemplateIndex: { type: Number, default: -1 },
+    dmLink: { type: String, trim: true, default: "" },
+    requireFollow: { type: Boolean, default: false },
     followMessage: {
       type: String,
       trim: true,
@@ -107,11 +77,57 @@ const campaignSchema = new mongoose.Schema(
       default:
         "Please follow us first! Once you follow, reply to this message with any word to get the link.",
     },
-    publicReply: {
-      enabled: {
-        type: Boolean,
-        default: false,
+    followFlow: {
+      enabled: { type: Boolean, default: false },
+      profileUrl: { type: String, trim: true, default: "" },
+      followerMessage: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+        default: "Thanks for commenting! Here's your resource:",
       },
+      nonFollowerMessage: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+        default:
+          "Hey! Please follow us to get the resource. Tap the button below:",
+      },
+      followButtonText: {
+        type: String,
+        trim: true,
+        maxlength: 20,
+        default: "Follow Us",
+      },
+      afterFollowMessage: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+        default: "Awesome! Thanks for following. Here's your resource:",
+      },
+      retryMessage: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+        default:
+          "Still not following? Tap the button and follow us to unlock the resource!",
+      },
+      maxRetries: { type: Number, default: 3, min: 1, max: 10 },
+    },
+    verifiedFollowers: { type: [String], default: [] },
+    pendingFollowChecks: [
+      {
+        userId: String,
+        username: String,
+        commentId: String,
+        retryCount: { type: Number, default: 0 },
+        lastMessageAt: Date,
+        buttonClicked: { type: Boolean, default: false },
+        verified: { type: Boolean, default: false },
+      },
+    ],
+    publicReply: {
+      enabled: { type: Boolean, default: false },
       message: {
         type: String,
         trim: true,
@@ -125,128 +141,44 @@ const campaignSchema = new mongoose.Schema(
       default: "short",
     },
     rateLimits: {
-      enabled: {
-        type: Boolean,
-        default: false,
-      },
-      maxPerHour: {
-        type: Number,
-        default: 40,
-        min: 1,
-        max: 1000,
-      },
-      maxPerDay: {
-        type: Number,
-        default: 200,
-        min: 1,
-        max: 10000,
-      },
-      userCooldownMinutes: {
-        type: Number,
-        default: 2,
-        min: 0,
-        max: 1440,
-      },
-      skipRepeatUsers: {
-        type: Boolean,
-        default: true,
-      },
-      repeatUserHours: {
-        type: Number,
-        default: 24,
-        min: 1,
-        max: 720,
-      },
+      enabled: { type: Boolean, default: false },
+      maxPerHour: { type: Number, default: 40, min: 1, max: 1000 },
+      maxPerDay: { type: Number, default: 200, min: 1, max: 10000 },
+      userCooldownMinutes: { type: Number, default: 0, min: 0, max: 1440 },
+      skipRepeatUsers: { type: Boolean, default: false },
+      repeatUserHours: { type: Number, default: 24, min: 1, max: 720 },
     },
     rateLimitCounters: {
-      hourlyCount: {
-        type: Number,
-        default: 0,
-      },
-      dailyCount: {
-        type: Number,
-        default: 0,
-      },
-      hourlyResetAt: {
-        type: Date,
-        default: Date.now,
-      },
-      dailyResetAt: {
-        type: Date,
-        default: Date.now,
-      },
+      hourlyCount: { type: Number, default: 0 },
+      dailyCount: { type: Number, default: 0 },
+      hourlyResetAt: { type: Date, default: Date.now },
+      dailyResetAt: { type: Date, default: Date.now },
     },
     schedule: {
-      enabled: {
-        type: Boolean,
-        default: false,
-      },
-      startDate: {
-        type: Date,
-        default: null,
-      },
-      endDate: {
-        type: Date,
-        default: null,
-      },
-      activeHoursStart: {
-        type: String,
-        default: "00:00",
-      },
-      activeHoursEnd: {
-        type: String,
-        default: "23:59",
-      },
+      enabled: { type: Boolean, default: false },
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null },
+      activeHoursStart: { type: String, default: "00:00" },
+      activeHoursEnd: { type: String, default: "23:59" },
       activeDays: {
         type: [Number],
         default: [0, 1, 2, 3, 4, 5, 6],
       },
-      timezone: {
-        type: String,
-        default: "UTC",
-      },
+      timezone: { type: String, default: "UTC" },
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
+    isActive: { type: Boolean, default: true },
     stats: {
-      totalComments: {
-        type: Number,
-        default: 0,
-      },
-      keywordMatches: {
-        type: Number,
-        default: 0,
-      },
-      dmsSent: {
-        type: Number,
-        default: 0,
-      },
-      dmsFailed: {
-        type: Number,
-        default: 0,
-      },
-      publicRepliesSent: {
-        type: Number,
-        default: 0,
-      },
-      followRequests: {
-        type: Number,
-        default: 0,
-      },
-      followConversions: {
-        type: Number,
-        default: 0,
-      },
-      rateLimitSkips: {
-        type: Number,
-        default: 0,
-      },
-      scheduleSkips: {
-        type: Number,
-        default: 0,
-      },
+      totalComments: { type: Number, default: 0 },
+      keywordMatches: { type: Number, default: 0 },
+      dmsSent: { type: Number, default: 0 },
+      dmsFailed: { type: Number, default: 0 },
+      publicRepliesSent: { type: Number, default: 0 },
+      followRequests: { type: Number, default: 0 },
+      followConversions: { type: Number, default: 0 },
+      rateLimitSkips: { type: Number, default: 0 },
+      scheduleSkips: { type: Number, default: 0 },
+      buttonClicks: { type: Number, default: 0 },
+      verifiedFollows: { type: Number, default: 0 },
     },
     processedComments: [
       {
@@ -259,11 +191,9 @@ const campaignSchema = new mongoose.Schema(
         dmSentAt: Date,
         publicReplySent: Boolean,
         followMessageSent: Boolean,
+        wasFollower: Boolean,
         skipReason: String,
-        processedAt: {
-          type: Date,
-          default: Date.now,
-        },
+        processedAt: { type: Date, default: Date.now },
       },
     ],
     pendingFollowUsers: [
@@ -271,16 +201,11 @@ const campaignSchema = new mongoose.Schema(
         userId: String,
         username: String,
         commentId: String,
-        followMessageSentAt: {
-          type: Date,
-          default: Date.now,
-        },
+        followMessageSentAt: { type: Date, default: Date.now },
       },
     ],
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 campaignSchema.pre("save", function (next) {
@@ -296,6 +221,7 @@ campaignSchema.pre("save", function (next) {
 campaignSchema.index({ user: 1, isActive: 1 });
 campaignSchema.index({ igPostId: 1 });
 campaignSchema.index({ "pendingFollowUsers.userId": 1 });
+campaignSchema.index({ "pendingFollowChecks.userId": 1 });
 
 const Campaign = mongoose.model("Campaign", campaignSchema);
 

@@ -11,13 +11,11 @@ import logger from "../utils/logger.js";
 
 const normalizeKeywords = (keywords, keyword) => {
   let list = [];
-  if (Array.isArray(keywords)) {
-    list = keywords;
-  } else if (typeof keywords === "string" && keywords.trim()) {
+  if (Array.isArray(keywords)) list = keywords;
+  else if (typeof keywords === "string" && keywords.trim())
     list = keywords.split(",");
-  } else if (typeof keyword === "string" && keyword.trim()) {
-    list = [keyword];
-  }
+  else if (typeof keyword === "string" && keyword.trim()) list = [keyword];
+
   return list
     .map((k) => String(k).toLowerCase().trim())
     .filter((k) => k.length > 0);
@@ -40,35 +38,50 @@ const normalizeTemplates = (templates) => {
 };
 
 const normalizeSchedule = (schedule) => {
-  if (!schedule || typeof schedule !== "object") {
-    return null;
-  }
+  if (!schedule || typeof schedule !== "object") return null;
 
   const validDays = Array.isArray(schedule.activeDays)
-    ? schedule.activeDays.map((d) => Number(d)).filter((d) => d >= 0 && d <= 6)
+    ? schedule.activeDays
+        .map((d) => Number(d))
+        .filter((d) => !isNaN(d) && d >= 0 && d <= 6)
     : [0, 1, 2, 3, 4, 5, 6];
+
+  const parseDate = (val) => {
+    if (!val || val === "" || val === "null" || val === "undefined")
+      return null;
+    try {
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return null;
+      return d;
+    } catch {
+      return null;
+    }
+  };
 
   return {
     enabled: Boolean(schedule.enabled),
-    startDate: schedule.startDate ? new Date(schedule.startDate) : null,
-    endDate: schedule.endDate ? new Date(schedule.endDate) : null,
+    startDate: parseDate(schedule.startDate),
+    endDate: parseDate(schedule.endDate),
     activeHoursStart:
-      typeof schedule.activeHoursStart === "string"
+      typeof schedule.activeHoursStart === "string" &&
+      schedule.activeHoursStart.trim()
         ? schedule.activeHoursStart
         : "00:00",
     activeHoursEnd:
-      typeof schedule.activeHoursEnd === "string"
+      typeof schedule.activeHoursEnd === "string" &&
+      schedule.activeHoursEnd.trim()
         ? schedule.activeHoursEnd
         : "23:59",
-    activeDays: validDays,
-    timezone: typeof schedule.timezone === "string" ? schedule.timezone : "UTC",
+    activeDays: validDays.length > 0 ? validDays : [0, 1, 2, 3, 4, 5, 6],
+    timezone:
+      typeof schedule.timezone === "string" && schedule.timezone.trim()
+        ? schedule.timezone
+        : "UTC",
   };
 };
 
 const normalizeRateLimits = (rateLimits) => {
-  if (!rateLimits || typeof rateLimits !== "object") {
-    return null;
-  }
+  if (!rateLimits || typeof rateLimits !== "object") return null;
   return {
     enabled: Boolean(rateLimits.enabled),
     maxPerHour: Math.max(
@@ -79,18 +92,47 @@ const normalizeRateLimits = (rateLimits) => {
       1,
       Math.min(10000, Number(rateLimits.maxPerDay) || 200),
     ),
-    userCooldownMinutes: Math.max(
-      0,
-      Math.min(1440, Number(rateLimits.userCooldownMinutes) || 2),
-    ),
-    skipRepeatUsers:
-      rateLimits.skipRepeatUsers === undefined
-        ? true
-        : Boolean(rateLimits.skipRepeatUsers),
-    repeatUserHours: Math.max(
-      1,
-      Math.min(720, Number(rateLimits.repeatUserHours) || 24),
-    ),
+    userCooldownMinutes: 0,
+    skipRepeatUsers: false,
+    repeatUserHours: 24,
+  };
+};
+
+const normalizeFollowFlow = (followFlow) => {
+  if (!followFlow || typeof followFlow !== "object") return null;
+
+  return {
+    enabled: Boolean(followFlow.enabled),
+    profileUrl:
+      typeof followFlow.profileUrl === "string"
+        ? followFlow.profileUrl.trim()
+        : "",
+    followerMessage:
+      typeof followFlow.followerMessage === "string" &&
+      followFlow.followerMessage.trim()
+        ? followFlow.followerMessage.trim()
+        : "Thanks for commenting! Here's your resource:",
+    nonFollowerMessage:
+      typeof followFlow.nonFollowerMessage === "string" &&
+      followFlow.nonFollowerMessage.trim()
+        ? followFlow.nonFollowerMessage.trim()
+        : "Hey! Please follow us to get the resource. Tap the button below:",
+    followButtonText:
+      typeof followFlow.followButtonText === "string" &&
+      followFlow.followButtonText.trim()
+        ? followFlow.followButtonText.trim().substring(0, 20)
+        : "Follow Us",
+    afterFollowMessage:
+      typeof followFlow.afterFollowMessage === "string" &&
+      followFlow.afterFollowMessage.trim()
+        ? followFlow.afterFollowMessage.trim()
+        : "Awesome! Thanks for following. Here's your resource:",
+    retryMessage:
+      typeof followFlow.retryMessage === "string" &&
+      followFlow.retryMessage.trim()
+        ? followFlow.retryMessage.trim()
+        : "Still not following? Tap the button and follow us to unlock the resource!",
+    maxRetries: Math.max(1, Math.min(10, Number(followFlow.maxRetries) || 3)),
   };
 };
 
@@ -101,10 +143,7 @@ export const getCampaigns = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const query = { user: req.user._id };
-
-    if (req.query.active === "true") {
-      query.isActive = true;
-    }
+    if (req.query.active === "true") query.isActive = true;
 
     const total = await Campaign.countDocuments(query);
     const campaigns = await Campaign.find(query)
@@ -115,8 +154,19 @@ export const getCampaigns = async (req, res, next) => {
       .lean();
 
     const campaignsClean = campaigns.map((c) => {
-      const { processedComments, pendingFollowUsers, ...rest } = c;
-      return rest;
+      const {
+        processedComments,
+        pendingFollowUsers,
+        pendingFollowChecks,
+        verifiedFollowers,
+        ...rest
+      } = c;
+      return {
+        ...rest,
+        verifiedFollowersCount: Array.isArray(verifiedFollowers)
+          ? verifiedFollowers.length
+          : 0,
+      };
     });
 
     return paginatedResponse(res, 200, "Campaigns retrieved", campaignsClean, {
@@ -137,9 +187,7 @@ export const getCampaign = async (req, res, next) => {
       user: req.user._id,
     }).populate("instagramAccount", "igUsername profilePicture");
 
-    if (!campaign) {
-      return errorResponse(res, 404, "Campaign not found");
-    }
+    if (!campaign) return errorResponse(res, 404, "Campaign not found");
 
     return successResponse(res, 200, "Campaign retrieved", campaign);
   } catch (error) {
@@ -166,6 +214,7 @@ export const createCampaign = async (req, res, next) => {
       dmLink,
       requireFollow,
       followMessage,
+      followFlow,
       publicReply,
       dmDelay,
       rateLimits,
@@ -237,6 +286,18 @@ export const createCampaign = async (req, res, next) => {
       campaignData.followMessage = followMessage.trim();
     }
 
+    const cleanFollowFlow = normalizeFollowFlow(followFlow);
+    if (cleanFollowFlow) {
+      if (cleanFollowFlow.enabled && !cleanFollowFlow.profileUrl) {
+        return errorResponse(
+          res,
+          400,
+          "Instagram profile URL is required when Follow Flow is enabled",
+        );
+      }
+      campaignData.followFlow = cleanFollowFlow;
+    }
+
     if (publicReply && typeof publicReply === "object") {
       campaignData.publicReply = {
         enabled: Boolean(publicReply.enabled),
@@ -248,17 +309,12 @@ export const createCampaign = async (req, res, next) => {
     }
 
     const cleanRateLimits = normalizeRateLimits(rateLimits);
-    if (cleanRateLimits) {
-      campaignData.rateLimits = cleanRateLimits;
-    }
+    if (cleanRateLimits) campaignData.rateLimits = cleanRateLimits;
 
     const cleanSchedule = normalizeSchedule(schedule);
-    if (cleanSchedule) {
-      campaignData.schedule = cleanSchedule;
-    }
+    if (cleanSchedule) campaignData.schedule = cleanSchedule;
 
     const campaign = await Campaign.create(campaignData);
-
     logger.info(`Campaign created: "${name}" by user ${req.user._id}`);
 
     return successResponse(res, 201, "Campaign created", campaign);
@@ -281,6 +337,7 @@ export const updateCampaign = async (req, res, next) => {
       "isActive",
       "requireFollow",
       "followMessage",
+      "followFlow",
       "publicReply",
       "dmDelay",
       "rateLimits",
@@ -289,9 +346,7 @@ export const updateCampaign = async (req, res, next) => {
     const updates = {};
 
     allowed.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
 
     if (updates.keywords !== undefined || updates.keyword !== undefined) {
@@ -327,15 +382,29 @@ export const updateCampaign = async (req, res, next) => {
       else delete updates.schedule;
     }
 
+    if (updates.followFlow !== undefined) {
+      const clean = normalizeFollowFlow(updates.followFlow);
+      if (clean) {
+        if (clean.enabled && !clean.profileUrl) {
+          return errorResponse(
+            res,
+            400,
+            "Instagram profile URL is required when Follow Flow is enabled",
+          );
+        }
+        updates.followFlow = clean;
+      } else {
+        delete updates.followFlow;
+      }
+    }
+
     const campaign = await Campaign.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       updates,
       { new: true, runValidators: true },
     );
 
-    if (!campaign) {
-      return errorResponse(res, 404, "Campaign not found");
-    }
+    if (!campaign) return errorResponse(res, 404, "Campaign not found");
 
     return successResponse(res, 200, "Campaign updated", campaign);
   } catch (error) {
@@ -350,9 +419,7 @@ export const deleteCampaign = async (req, res, next) => {
       user: req.user._id,
     });
 
-    if (!campaign) {
-      return errorResponse(res, 404, "Campaign not found");
-    }
+    if (!campaign) return errorResponse(res, 404, "Campaign not found");
 
     await Analytics.deleteMany({ campaign: campaign._id });
     await DMHistory.deleteMany({ campaign: campaign._id });
@@ -370,9 +437,7 @@ export const toggleCampaign = async (req, res, next) => {
       user: req.user._id,
     });
 
-    if (!campaign) {
-      return errorResponse(res, 404, "Campaign not found");
-    }
+    if (!campaign) return errorResponse(res, 404, "Campaign not found");
 
     campaign.isActive = !campaign.isActive;
     await campaign.save();
@@ -395,9 +460,7 @@ export const duplicateCampaign = async (req, res, next) => {
       user: req.user._id,
     }).lean();
 
-    if (!original) {
-      return errorResponse(res, 404, "Campaign not found");
-    }
+    if (!original) return errorResponse(res, 404, "Campaign not found");
 
     const {
       _id,
@@ -406,6 +469,8 @@ export const duplicateCampaign = async (req, res, next) => {
       stats,
       processedComments,
       pendingFollowUsers,
+      pendingFollowChecks,
+      verifiedFollowers,
       rateLimitCounters,
       lastTemplateIndex,
       __v,
@@ -417,8 +482,6 @@ export const duplicateCampaign = async (req, res, next) => {
       name: `${rest.name} (Copy)`,
       isActive: false,
     });
-
-    logger.info(`Campaign duplicated: "${clone.name}" by user ${req.user._id}`);
 
     return successResponse(res, 201, "Campaign duplicated", clone);
   } catch (error) {
