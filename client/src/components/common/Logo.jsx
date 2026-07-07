@@ -61,7 +61,7 @@ export default function Logo({ variant = "dark", size = "default" }) {
         <span
           className={`font-manrope font-bold tracking-tight ${sizeClasses[size]} ${colorClasses[variant]}`}
         >
-          InstaFlow
+          IGAutomates
         </span>
       </motion.div>
     </Link>

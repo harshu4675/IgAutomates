@@ -67,34 +67,6 @@ export default function Dashboard() {
   const hasCampaigns = campaigns && campaigns.length > 0;
   const igError = searchParams.get("ig_error");
   const igConnected = searchParams.get("ig_connected");
-
-  const stats = [
-    {
-      icon: HiOutlineRocketLaunch,
-      label: "Active Campaigns",
-      value: analytics?.activeCampaigns || 0,
-      gradient: "from-primary-mid to-primary-dark",
-    },
-    {
-      icon: HiOutlineChatBubbleLeftRight,
-      label: "Comments (7d)",
-      value: analytics?.totalComments || 0,
-      gradient: "from-blue-500 to-blue-600",
-    },
-    {
-      icon: HiOutlineBolt,
-      label: "Matches (7d)",
-      value: analytics?.totalMatches || 0,
-      gradient: "from-amber-500 to-orange-500",
-    },
-    {
-      icon: HiOutlinePaperAirplane,
-      label: "DMs Sent (7d)",
-      value: analytics?.totalDMs || 0,
-      gradient: "from-emerald-500 to-emerald-600",
-    },
-  ];
-
   return (
     <>
       <Helmet>
@@ -174,11 +146,7 @@ export default function Dashboard() {
               <motion.div
                 variants={fadeInUp}
                 className="grid grid-cols-2 lg:grid-cols-4 gap-4"
-              >
-                {stats.map((stat) => (
-                  <StatCard key={stat.label} {...stat} />
-                ))}
-              </motion.div>
+              ></motion.div>
 
               {hasCampaigns && analytics?.dailyStats && (
                 <motion.div

@@ -8,7 +8,6 @@ import {
   getDelayMilliseconds,
   sleep,
   pickDMTemplate,
-  checkIfUserFollows,
 } from "../services/instagramService.js";
 import { isCampaignScheduleActive } from "../services/scheduleService.js";
 import {
@@ -23,10 +22,6 @@ export const verifyWebhook = (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
-
-  logger.info(
-    `Webhook verification - Mode: ${mode}, Token match: ${token === env.IG_VERIFY_TOKEN}`,
-  );
 
   if (mode === "subscribe" && token === env.IG_VERIFY_TOKEN) {
     return res.status(200).send(challenge);
@@ -135,6 +130,10 @@ async function handlePostback(account, senderId, postback) {
 
 async function handleTextMessage(account, senderId, messageText) {
   try {
+    logger.info(
+      `Text message from ${senderId}: "${messageText.substring(0, 100)}"`,
+    );
+
     const legacyCampaigns = await Campaign.find({
       instagramAccount: account._id,
       isActive: true,
@@ -157,6 +156,10 @@ async function handleTextMessage(account, senderId, messageText) {
       "followFlow.enabled": true,
       "pendingFollowChecks.userId": senderId,
     });
+
+    logger.info(
+      `Found ${flowCampaigns.length} follow flow campaigns for user ${senderId}`,
+    );
 
     for (const campaign of flowCampaigns) {
       await handleFollowFlowReply({
@@ -182,140 +185,110 @@ async function handleFollowFlowReply({
       (p) => p.userId === senderId,
     );
 
-    if (!pendingCheck || pendingCheck.verified) return;
+    if (!pendingCheck) {
+      logger.info(`No pending check found for ${senderId}`);
+      return;
+    }
+
+    if (pendingCheck.verified) {
+      logger.info(`User ${senderId} already verified, skipping`);
+      return;
+    }
 
     const tokenToUse = account.instagramUserToken || account.pageAccessToken;
 
-    logger.info(`Verifying follow for @${pendingCheck.username}...`);
+    logger.info(
+      `User @${pendingCheck.username} replied to follow flow, sending resource now`,
+    );
 
-    let isVerifiedFollower = false;
+    pendingCheck.verified = true;
 
-    try {
-      const followCheck = await checkIfUserFollows(
-        account.igUserId,
-        senderId,
-        tokenToUse,
-      );
-      if (followCheck.success && followCheck.data?.business_discovery) {
-        isVerifiedFollower = true;
-      }
-    } catch (e) {
-      logger.warn("API follow check failed, trusting button click");
+    if (!campaign.verifiedFollowers.includes(senderId)) {
+      campaign.verifiedFollowers.push(senderId);
+      campaign.stats.verifiedFollows += 1;
     }
 
-    if (!isVerifiedFollower && pendingCheck.buttonClicked) {
-      isVerifiedFollower = true;
-      logger.info(
-        `Trusting button click for @${pendingCheck.username} (API check unavailable)`,
-      );
+    await Analytics.create({
+      user: campaign.user,
+      campaign: campaign._id,
+      event: "follow_verified",
+      fromUserId: senderId,
+      fromUsername: pendingCheck.username,
+      commentId: pendingCheck.commentId,
+      metadata: {
+        method: pendingCheck.buttonClicked
+          ? "button_clicked_and_replied"
+          : "replied_only",
+        replyText: messageText,
+      },
+    });
+
+    let successMsg = (
+      campaign.followFlow?.afterFollowMessage ||
+      "Awesome! Here's your resource:"
+    ).replace(/\{\{username\}\}/g, pendingCheck.username);
+
+    if (campaign.dmLink) {
+      successMsg += `\n\n${campaign.dmLink}`;
     }
 
-    if (isVerifiedFollower) {
-      pendingCheck.verified = true;
+    logger.info(
+      `Sending success DM to @${pendingCheck.username}: "${successMsg.substring(0, 100)}"`,
+    );
 
-      if (!campaign.verifiedFollowers.includes(senderId)) {
-        campaign.verifiedFollowers.push(senderId);
-        campaign.stats.verifiedFollows += 1;
-      }
+    const dmResult = await sendInstagramDM(
+      account.igUserId,
+      senderId,
+      successMsg,
+      tokenToUse,
+      null,
+    );
+
+    if (dmResult.success) {
+      campaign.stats.dmsSent += 1;
+      campaign.stats.followConversions += 1;
 
       await Analytics.create({
         user: campaign.user,
         campaign: campaign._id,
-        event: "follow_verified",
+        event: "follow_conversion",
         fromUserId: senderId,
         fromUsername: pendingCheck.username,
-        commentId: pendingCheck.commentId,
+        metadata: {
+          messageId: dmResult.data?.message_id,
+          replyText: messageText,
+        },
       });
 
-      const templateResult = pickDMTemplate(campaign);
-      let successMsg = campaign.followFlow.afterFollowMessage.replace(
-        /\{\{username\}\}/g,
-        pendingCheck.username,
-      );
+      await recordDMHistory({
+        user: campaign.user,
+        campaign: campaign._id,
+        recipientId: senderId,
+        recipientUsername: pendingCheck.username,
+        templateUsed: -1,
+      });
 
-      if (campaign.dmLink) {
-        successMsg += `\n\n${campaign.dmLink}`;
-      }
-
-      const dmResult = await sendInstagramDM(
-        account.igUserId,
-        senderId,
-        successMsg,
-        tokenToUse,
-        null,
-      );
-
-      if (dmResult.success) {
-        campaign.stats.dmsSent += 1;
-        campaign.stats.followConversions += 1;
-
-        await Analytics.create({
-          user: campaign.user,
-          campaign: campaign._id,
-          event: "follow_conversion",
-          fromUserId: senderId,
-          fromUsername: pendingCheck.username,
-          metadata: {
-            messageId: dmResult.data?.message_id,
-            replyText: messageText,
-          },
-        });
-
-        await recordDMHistory({
-          user: campaign.user,
-          campaign: campaign._id,
-          recipientId: senderId,
-          recipientUsername: pendingCheck.username,
-          templateUsed: templateResult.index,
-        });
-
-        logger.info(
-          `Resource DM sent to verified follower @${pendingCheck.username}`,
-        );
-      }
-
-      campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(
-        (p) => p.userId !== senderId,
-      );
+      logger.info(`Resource DM sent successfully to @${pendingCheck.username}`);
     } else {
-      if (pendingCheck.retryCount < campaign.followFlow.maxRetries) {
-        pendingCheck.retryCount += 1;
-        pendingCheck.lastMessageAt = new Date();
+      campaign.stats.dmsFailed += 1;
 
-        await sendDMWithButton(
-          account.igUserId,
-          senderId,
-          campaign.followFlow.retryMessage.replace(
-            /\{\{username\}\}/g,
-            pendingCheck.username,
-          ),
-          campaign.followFlow.followButtonText,
-          campaign.followFlow.profileUrl,
-          tokenToUse,
-          null,
-        );
+      await Analytics.create({
+        user: campaign.user,
+        campaign: campaign._id,
+        event: "dm_failed",
+        fromUserId: senderId,
+        fromUsername: pendingCheck.username,
+        metadata: { error: dmResult.error, context: "follow_conversion" },
+      });
 
-        await Analytics.create({
-          user: campaign.user,
-          campaign: campaign._id,
-          event: "follow_retry_sent",
-          fromUserId: senderId,
-          fromUsername: pendingCheck.username,
-          metadata: { retryCount: pendingCheck.retryCount },
-        });
-
-        logger.info(
-          `Retry ${pendingCheck.retryCount} sent to @${pendingCheck.username}`,
-        );
-      } else {
-        campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(
-          (p) => p.userId !== senderId,
-        );
-        logger.info(
-          `Max retries reached for @${pendingCheck.username}, removed from pending`,
-        );
-      }
+      logger.error(
+        `Resource DM failed for @${pendingCheck.username}: ${dmResult.error}`,
+      );
     }
+
+    campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(
+      (p) => p.userId !== senderId,
+    );
 
     await campaign.save();
   } catch (error) {
@@ -605,20 +578,26 @@ async function processCampaignMatch({
       await sleep(delayMs);
     }
 
-    if (campaign.followFlow?.enabled && !isTest) {
+    const followFlowActive = campaign.followFlow?.enabled === true;
+
+    logger.info(
+      `Follow flow active for campaign ${campaign._id}: ${followFlowActive}`,
+    );
+
+    if (followFlowActive && !isTest) {
       const isAlreadyVerified =
         campaign.verifiedFollowers.includes(commenterId);
 
       if (isAlreadyVerified) {
         wasFollower = true;
         logger.info(
-          `@${commenterUsername} is already verified follower, sending direct DM`,
+          `@${commenterUsername} is verified follower, sending direct DM`,
         );
 
-        let msg = campaign.followFlow.followerMessage.replace(
-          /\{\{username\}\}/g,
-          commenterUsername,
-        );
+        let msg = (
+          campaign.followFlow.followerMessage ||
+          "Thanks for commenting! Here's your resource:"
+        ).replace(/\{\{username\}\}/g, commenterUsername);
         if (campaign.dmLink) msg += `\n\n${campaign.dmLink}`;
 
         const dmResult = await sendInstagramDM(
@@ -665,130 +644,99 @@ async function processCampaignMatch({
               context: "verified_follower",
             },
           });
+        } else {
+          campaign.stats.dmsFailed += 1;
+          logger.error(
+            `Failed to send DM to verified follower: ${dmResult.error}`,
+          );
         }
       } else {
-        let followerVerifiedViaAPI = false;
-        try {
-          const followCheck = await checkIfUserFollows(
+        const alreadyPending = campaign.pendingFollowChecks.some(
+          (p) => p.userId === commenterId,
+        );
+
+        if (!alreadyPending) {
+          logger.info(
+            `Sending follow button to non-follower @${commenterUsername}`,
+          );
+
+          const followMsg = (
+            campaign.followFlow.nonFollowerMessage || "Please follow us first!"
+          ).replace(/\{\{username\}\}/g, commenterUsername);
+
+          const buttonResult = await sendDMWithButton(
             account.igUserId,
             commenterId,
-            tokenToUse,
-          );
-          if (followCheck.success && followCheck.data?.business_discovery) {
-            followerVerifiedViaAPI = true;
-          }
-        } catch (e) {
-          logger.warn("API follow check unavailable");
-        }
-
-        if (followerVerifiedViaAPI) {
-          wasFollower = true;
-          campaign.verifiedFollowers.push(commenterId);
-          campaign.stats.verifiedFollows += 1;
-
-          let msg = campaign.followFlow.followerMessage.replace(
-            /\{\{username\}\}/g,
-            commenterUsername,
-          );
-          if (campaign.dmLink) msg += `\n\n${campaign.dmLink}`;
-
-          const dmResult = await sendInstagramDM(
-            account.igUserId,
-            commenterId,
-            msg,
+            followMsg,
+            campaign.followFlow.followButtonText || "Follow Us",
+            campaign.followFlow.profileUrl,
             tokenToUse,
             commentId,
           );
 
-          if (dmResult.success) {
-            dmSent = true;
-            campaign.stats.dmsSent += 1;
-            await incrementRateLimitCounters(campaign);
+          if (buttonResult.success) {
+            campaign.stats.followRequests += 1;
+
+            campaign.pendingFollowChecks.push({
+              userId: commenterId,
+              username: commenterUsername,
+              commentId,
+              retryCount: 0,
+              lastMessageAt: new Date(),
+              buttonClicked: false,
+              verified: false,
+            });
+
+            if (campaign.pendingFollowChecks.length > 500) {
+              campaign.pendingFollowChecks =
+                campaign.pendingFollowChecks.slice(-500);
+            }
+
             await Analytics.create({
               user: campaign.user,
               campaign: campaign._id,
-              event: "dm_sent",
+              event: "follow_button_sent",
               commentId,
               commentText,
               fromUserId: commenterId,
               fromUsername: commenterUsername,
-              metadata: { context: "api_verified_follower" },
+              metadata: {
+                messageId: buttonResult.data?.message_id,
+                buttonUrl: campaign.followFlow.profileUrl,
+              },
             });
+
+            logger.info(`Follow button sent to @${commenterUsername}`);
+          } else {
+            campaign.stats.dmsFailed += 1;
+            await Analytics.create({
+              user: campaign.user,
+              campaign: campaign._id,
+              event: "dm_failed",
+              commentId,
+              commentText,
+              fromUserId: commenterId,
+              fromUsername: commenterUsername,
+              metadata: {
+                error: buttonResult.error,
+                context: "follow_button",
+              },
+            });
+            logger.error(
+              `Follow button failed for @${commenterUsername}: ${buttonResult.error}`,
+            );
           }
         } else {
-          const alreadyPending = campaign.pendingFollowChecks.some(
-            (p) => p.userId === commenterId,
+          logger.info(
+            `@${commenterUsername} already has pending follow check, skipping`,
           );
-
-          if (!alreadyPending) {
-            const followMsg = campaign.followFlow.nonFollowerMessage.replace(
-              /\{\{username\}\}/g,
-              commenterUsername,
-            );
-
-            const buttonResult = await sendDMWithButton(
-              account.igUserId,
-              commenterId,
-              followMsg,
-              campaign.followFlow.followButtonText,
-              campaign.followFlow.profileUrl,
-              tokenToUse,
-              commentId,
-            );
-
-            if (buttonResult.success) {
-              campaign.stats.followRequests += 1;
-
-              campaign.pendingFollowChecks.push({
-                userId: commenterId,
-                username: commenterUsername,
-                commentId,
-                retryCount: 0,
-                lastMessageAt: new Date(),
-                buttonClicked: false,
-                verified: false,
-              });
-
-              if (campaign.pendingFollowChecks.length > 500) {
-                campaign.pendingFollowChecks =
-                  campaign.pendingFollowChecks.slice(-500);
-              }
-
-              await Analytics.create({
-                user: campaign.user,
-                campaign: campaign._id,
-                event: "follow_button_sent",
-                commentId,
-                commentText,
-                fromUserId: commenterId,
-                fromUsername: commenterUsername,
-                metadata: {
-                  messageId: buttonResult.data?.message_id,
-                  buttonUrl: campaign.followFlow.profileUrl,
-                },
-              });
-
-              logger.info(`Follow button sent to @${commenterUsername}`);
-            } else {
-              campaign.stats.dmsFailed += 1;
-              await Analytics.create({
-                user: campaign.user,
-                campaign: campaign._id,
-                event: "dm_failed",
-                commentId,
-                commentText,
-                fromUserId: commenterId,
-                fromUsername: commenterUsername,
-                metadata: {
-                  error: buttonResult.error,
-                  context: "follow_button",
-                },
-              });
-            }
-          }
         }
       }
     } else {
+      logger.info(
+        `Follow flow disabled, sending normal DM to @${commenterUsername}`,
+      );
+
       const templateResult = pickDMTemplate(campaign);
       let dmContent = templateResult.message.replace(
         /\{\{username\}\}/g,

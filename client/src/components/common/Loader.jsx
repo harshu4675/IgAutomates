@@ -28,7 +28,7 @@ export default function Loader() {
           ))}
         </div>
         <span className="text-lg font-manrope font-bold text-primary-darkest ml-2">
-          InstaFlow
+          IGAutomates
         </span>
       </motion.div>
     </div>
