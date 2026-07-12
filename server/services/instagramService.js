@@ -382,8 +382,12 @@ export const sendDMWithLinkFallback = async ({
   commentId = null,
   linkDeliveryMode = "no_https",
 }) => {
-  const { buildMessageWithLink, buildFallbackMessage, isLinkBlockedError } =
-    await import("../utils/linkHelper.js");
+  const {
+    buildMessageWithLink,
+    buildFallbackMessage,
+    buildLastResortMessage,
+    isLinkBlockedError,
+  } = await import("../utils/linkHelper.js");
 
   const primaryMessage = buildMessageWithLink({
     baseMessage: message,
@@ -418,7 +422,7 @@ export const sendDMWithLinkFallback = async ({
   }
 
   logger.warn(
-    `Link blocked by Instagram. Trying fallback for recipient ${recipientId}`,
+    `Link blocked. Trying fallback (no_https) for recipient ${recipientId}`,
   );
 
   const fallbackMessage = buildFallbackMessage({ baseMessage: message, link });
@@ -432,36 +436,46 @@ export const sendDMWithLinkFallback = async ({
   );
 
   if (fallbackAttempt.success) {
-    logger.info("Fallback message sent successfully");
+    logger.info("Fallback (no_https) sent successfully");
     return {
       ...fallbackAttempt,
       linkIncluded: true,
-      mode: "fallback",
+      mode: "fallback_no_https",
       wasBlocked: true,
     };
   }
 
-  logger.warn("Fallback also failed. Sending message without link");
-
-  const noLinkAttempt = await sendInstagramDM(
-    igUserId,
-    recipientId,
-    message,
-    accessToken,
-    commentId,
+  const stillBlocked = isLinkBlockedError(
+    fallbackAttempt.errorCode,
+    fallbackAttempt.errorSubcode,
+    fallbackAttempt.error,
   );
 
-  if (noLinkAttempt.success) {
-    return {
-      ...noLinkAttempt,
-      linkIncluded: false,
-      mode: "no_link",
-      wasBlocked: true,
-    };
+  if (stillBlocked) {
+    logger.warn("Fallback also blocked. Sending 'check bio' message");
+
+    const lastResort = buildLastResortMessage({ baseMessage: message });
+
+    const lastAttempt = await sendInstagramDM(
+      igUserId,
+      recipientId,
+      lastResort,
+      accessToken,
+      commentId,
+    );
+
+    if (lastAttempt.success) {
+      return {
+        ...lastAttempt,
+        linkIncluded: false,
+        mode: "bio_fallback",
+        wasBlocked: true,
+      };
+    }
   }
 
   return {
-    ...noLinkAttempt,
+    ...fallbackAttempt,
     linkIncluded: false,
     mode: "failed",
     wasBlocked: true,

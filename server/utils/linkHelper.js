@@ -1,5 +1,5 @@
 export const LINK_ERROR_CODES = [508, 551, 200, 100];
-export const LINK_ERROR_SUBCODES = [2534122, 2534014, 1755006];
+export const LINK_ERROR_SUBCODES = [2534122, 2534014, 1755006, 2018001];
 
 export const isLinkBlockedError = (errorCode, errorSubcode, errorMessage) => {
   if (LINK_ERROR_SUBCODES.includes(errorSubcode)) return true;
@@ -8,7 +8,9 @@ export const isLinkBlockedError = (errorCode, errorSubcode, errorMessage) => {
     if (
       lower.includes("link can't be shared") ||
       lower.includes("community standards") ||
-      lower.includes("invalid message id")
+      lower.includes("invalid message id") ||
+      lower.includes("cannot send link") ||
+      lower.includes("not allowed to send")
     ) {
       return true;
     }
@@ -29,8 +31,6 @@ export const sanitizeLink = (link, mode = "no_https") => {
         .replace(/^https?:\/\//i, "")
         .replace(/\./g, " . ")
         .replace(/\//g, " / ");
-    case "reversed":
-      return trimmed.split("").reverse().join("");
     case "direct":
     default:
       return trimmed;
@@ -41,11 +41,10 @@ export const buildMessageWithLink = ({
   baseMessage,
   link,
   linkDeliveryMode = "no_https",
-  linkLabel = "Link",
 }) => {
-  if (!link) return baseMessage;
-
   const cleanBase = String(baseMessage || "").trim();
+
+  if (!link) return cleanBase;
 
   switch (linkDeliveryMode) {
     case "direct":
@@ -53,29 +52,32 @@ export const buildMessageWithLink = ({
 
     case "no_https": {
       const clean = sanitizeLink(link, "no_https");
-      return `${cleanBase}\n\n${linkLabel}: ${clean}`;
+      return `${cleanBase}\n\n${clean}`;
     }
 
     case "delayed":
-      return cleanBase;
+      return `${cleanBase}\n\nReply "SEND" to get the link.`;
 
     case "reply_first":
       return `${cleanBase}\n\nReply "SEND" and I will share the link with you!`;
 
-    default:
-      return `${cleanBase}\n\n${link}`;
+    default: {
+      const clean = sanitizeLink(link, "no_https");
+      return `${cleanBase}\n\n${clean}`;
+    }
   }
-};
-
-export const shouldSendLinkSeparately = (linkDeliveryMode) => {
-  return linkDeliveryMode === "delayed";
 };
 
 export const buildFallbackMessage = ({ baseMessage, link }) => {
   const cleanBase = String(baseMessage || "").trim();
   if (!link) return cleanBase;
   const clean = sanitizeLink(link, "no_https");
-  return `${cleanBase}\n\nGet it from: ${clean}\n\n(Copy and paste in your browser)`;
+  return `${cleanBase}\n\n${clean}`;
+};
+
+export const buildLastResortMessage = ({ baseMessage }) => {
+  const cleanBase = String(baseMessage || "").trim();
+  return `${cleanBase}\n\nCheck my bio for the link!`;
 };
 
 export const extractDomainSafely = (link) => {
