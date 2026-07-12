@@ -156,7 +156,6 @@ export default function AutomationSetup({
           "Still not following? Tap the button and follow us to unlock the resource!",
         maxRetries: 3,
       },
-
       publicReply: {
         enabled: false,
         message: "Check your DMs!",
@@ -283,7 +282,7 @@ export default function AutomationSetup({
         Automation Setup
       </h3>
       <p className="text-sm text-text-muted font-jakarta mb-6">
-        Configure triggers, follow flow, share detection, and automation rules.
+        Configure triggers, follow flow, and automation rules.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1228,9 +1227,7 @@ export default function AutomationSetup({
                 <div className="flex justify-end">
                   <div className="max-w-[80%] bg-primary-lightest/40 rounded-2xl rounded-tr-md px-3 py-2">
                     <p className="text-xs font-jakarta text-primary-darkest">
-                      {shareTriggerEnabled
-                        ? `Shared your post`
-                        : `Commented "${previewKeyword}"`}
+                      Commented &quot;{previewKeyword}&quot;
                     </p>
                   </div>
                 </div>
@@ -1320,7 +1317,7 @@ export default function AutomationSetup({
                           )}
                           {dmLink && linkDeliveryMode === "reply_first" && (
                             <p className="text-[11px] font-jakarta text-primary-lightest mt-2 italic">
-                              Reply "SEND" to get the link
+                              Reply &quot;SEND&quot; to get the link
                             </p>
                           )}
                         </div>
@@ -1333,22 +1330,11 @@ export default function AutomationSetup({
           </div>
 
           <p className="mt-4 text-xs text-text-muted font-jakarta text-center">
-            {shareTriggerEnabled && !followFlowEnabled ? (
-              <>
-                Triggers on comments{" "}
-                <span className="font-bold text-primary-dark">
-                  and post shares
-                </span>
-              </>
-            ) : (
-              <>
-                When someone comments{" "}
-                <span className="font-bold text-primary-dark">
-                  &quot;{previewKeyword}&quot;
-                </span>
-                , this flow runs.
-              </>
-            )}
+            When someone comments{" "}
+            <span className="font-bold text-primary-dark">
+              &quot;{previewKeyword}&quot;
+            </span>
+            , this flow runs.
           </p>
         </div>
       </div>
