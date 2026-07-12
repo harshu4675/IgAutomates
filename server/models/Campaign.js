@@ -74,14 +74,6 @@ const campaignSchema = new mongoose.Schema(
       enum: ["direct", "delayed", "reply_first", "no_https"],
       default: "no_https",
     },
-    requireFollow: { type: Boolean, default: false },
-    followMessage: {
-      type: String,
-      trim: true,
-      maxlength: 1000,
-      default:
-        "Please follow us first! Once you follow, reply to this message with any word to get the link.",
-    },
     followFlow: {
       enabled: { type: Boolean, default: false },
       profileUrl: { type: String, trim: true, default: "" },
@@ -114,21 +106,9 @@ const campaignSchema = new mongoose.Schema(
         type: String,
         trim: true,
         maxlength: 1000,
-        default:
-          "Still not following? Tap the button and follow us to unlock the resource!",
+        default: "Please tap the Follow button first, then reply again!",
       },
       maxRetries: { type: Number, default: 3, min: 1, max: 10 },
-    },
-    shareTrigger: {
-      enabled: { type: Boolean, default: false },
-      triggerOnDMShare: { type: Boolean, default: true },
-      triggerOnStoryMention: { type: Boolean, default: true },
-      shareMessage: {
-        type: String,
-        trim: true,
-        maxlength: 1000,
-        default: "Thanks for sharing our post! Here is your special resource:",
-      },
     },
     verifiedFollowers: { type: [String], default: [] },
     pendingFollowChecks: [
@@ -136,11 +116,6 @@ const campaignSchema = new mongoose.Schema(
         userId: String,
         username: String,
         commentId: String,
-        source: {
-          type: String,
-          enum: ["comment", "share", "story_mention"],
-          default: "comment",
-        },
         retryCount: { type: Number, default: 0 },
         lastMessageAt: Date,
         buttonClicked: { type: Boolean, default: false },
@@ -165,9 +140,6 @@ const campaignSchema = new mongoose.Schema(
       enabled: { type: Boolean, default: false },
       maxPerHour: { type: Number, default: 40, min: 1, max: 1000 },
       maxPerDay: { type: Number, default: 200, min: 1, max: 10000 },
-      userCooldownMinutes: { type: Number, default: 0 },
-      skipRepeatUsers: { type: Boolean, default: false },
-      repeatUserHours: { type: Number, default: 24 },
     },
     rateLimitCounters: {
       hourlyCount: { type: Number, default: 0 },
@@ -181,10 +153,7 @@ const campaignSchema = new mongoose.Schema(
       endDate: { type: Date, default: null },
       activeHoursStart: { type: String, default: "00:00" },
       activeHoursEnd: { type: String, default: "23:59" },
-      activeDays: {
-        type: [Number],
-        default: [0, 1, 2, 3, 4, 5, 6],
-      },
+      activeDays: { type: [Number], default: [0, 1, 2, 3, 4, 5, 6] },
       timezone: { type: String, default: "UTC" },
     },
     isActive: { type: Boolean, default: true },
@@ -200,7 +169,6 @@ const campaignSchema = new mongoose.Schema(
       scheduleSkips: { type: Number, default: 0 },
       buttonClicks: { type: Number, default: 0 },
       verifiedFollows: { type: Number, default: 0 },
-      sharesReceived: { type: Number, default: 0 },
       linkBlocked: { type: Number, default: 0 },
     },
     processedComments: [
@@ -210,26 +178,12 @@ const campaignSchema = new mongoose.Schema(
         username: String,
         text: String,
         matchedKeyword: String,
-        source: {
-          type: String,
-          enum: ["comment", "share", "story_mention"],
-          default: "comment",
-        },
         dmSent: Boolean,
         dmSentAt: Date,
         publicReplySent: Boolean,
-        followMessageSent: Boolean,
         wasFollower: Boolean,
         skipReason: String,
         processedAt: { type: Date, default: Date.now },
-      },
-    ],
-    pendingFollowUsers: [
-      {
-        userId: String,
-        username: String,
-        commentId: String,
-        followMessageSentAt: { type: Date, default: Date.now },
       },
     ],
   },
@@ -248,7 +202,6 @@ campaignSchema.pre("save", function (next) {
 
 campaignSchema.index({ user: 1, isActive: 1 });
 campaignSchema.index({ igPostId: 1 });
-campaignSchema.index({ "pendingFollowUsers.userId": 1 });
 campaignSchema.index({ "pendingFollowChecks.userId": 1 });
 
 const Campaign = mongoose.model("Campaign", campaignSchema);

@@ -82,13 +82,10 @@ export const getInstagramPosts = async (
       "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count",
     limit: 25,
   };
-
   if (after) params.after = after;
-
   const response = await axios.get(`${GRAPH_API}/${igAccountId}/media`, {
     params,
   });
-
   return response.data;
 };
 
@@ -111,51 +108,29 @@ export const sendInstagramDM = async (
   commentId = null,
 ) => {
   try {
-    logger.info(
-      `Sending DM: recipient=${recipientId}, commentId=${commentId}, msgLength=${message?.length}`,
-    );
-
     const recipient = commentId
       ? { comment_id: commentId }
       : { id: recipientId };
 
+    logger.info(`Sending DM to ${recipientId}, commentId=${commentId}`);
+
     const response = await axios.post(
       `${INSTAGRAM_API}/me/messages`,
-      {
-        recipient,
-        message: { text: message },
-      },
+      { recipient, message: { text: message } },
       {
         params: { access_token: accessToken },
         headers: { "Content-Type": "application/json" },
       },
     );
 
-    logger.info(`DM sent. Message ID: ${response.data.message_id}`);
-
-    return {
-      success: true,
-      data: response.data,
-    };
+    logger.info(`DM sent. ID: ${response.data.message_id}`);
+    return { success: true, data: response.data };
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.error?.message ||
-      error.response?.data?.error?.error_user_msg ||
-      error.message;
-
+    const errorMessage = error.response?.data?.error?.message || error.message;
     const errorCode = error.response?.data?.error?.code;
     const errorSubcode = error.response?.data?.error?.error_subcode;
-
-    logger.error(
-      `DM failed: ${errorMessage} (code: ${errorCode}, subcode: ${errorSubcode})`,
-    );
-
-    return {
-      success: false,
-      error: errorMessage,
-      errorCode,
-      errorSubcode,
-    };
+    logger.error(`DM failed: ${errorMessage} (${errorCode}/${errorSubcode})`);
+    return { success: false, error: errorMessage, errorCode, errorSubcode };
   }
 };
 
@@ -169,71 +144,49 @@ export const sendDMWithButton = async (
   commentId = null,
 ) => {
   try {
-    logger.info(
-      `Sending button DM: recipient=${recipientId}, url=${buttonUrl}`,
-    );
-
     const recipient = commentId
       ? { comment_id: commentId }
       : { id: recipientId };
 
-    const payload = {
-      recipient,
-      message: {
-        attachment: {
-          type: "template",
-          payload: {
-            template_type: "button",
-            text: message,
-            buttons: [
-              {
-                type: "web_url",
-                url: buttonUrl,
-                title: buttonText,
-              },
-            ],
+    logger.info(`Sending button DM to ${recipientId}`);
+
+    const response = await axios.post(
+      `${INSTAGRAM_API}/me/messages`,
+      {
+        recipient,
+        message: {
+          attachment: {
+            type: "template",
+            payload: {
+              template_type: "button",
+              text: message,
+              buttons: [{ type: "web_url", url: buttonUrl, title: buttonText }],
+            },
           },
         },
       },
-    };
-
-    const response = await axios.post(`${INSTAGRAM_API}/me/messages`, payload, {
-      params: { access_token: accessToken },
-      headers: { "Content-Type": "application/json" },
-    });
-
-    logger.info(`Button DM sent. Message ID: ${response.data.message_id}`);
-
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    const errorMessage =
-      error.response?.data?.error?.message ||
-      error.response?.data?.error?.error_user_msg ||
-      error.message;
-
-    const errorCode = error.response?.data?.error?.code;
-    const errorSubcode = error.response?.data?.error?.error_subcode;
-
-    logger.error(
-      `Button DM failed: ${errorMessage} (code: ${errorCode}, subcode: ${errorSubcode})`,
+      {
+        params: { access_token: accessToken },
+        headers: { "Content-Type": "application/json" },
+      },
     );
 
-    return {
-      success: false,
-      error: errorMessage,
-      errorCode,
-      errorSubcode,
-    };
+    logger.info(`Button DM sent. ID: ${response.data.message_id}`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorMessage = error.response?.data?.error?.message || error.message;
+    const errorCode = error.response?.data?.error?.code;
+    const errorSubcode = error.response?.data?.error?.error_subcode;
+    logger.error(
+      `Button DM failed: ${errorMessage} (${errorCode}/${errorSubcode})`,
+    );
+    return { success: false, error: errorMessage, errorCode, errorSubcode };
   }
 };
 
 export const replyToComment = async (commentId, message, accessToken) => {
   try {
-    logger.info(`Replying to comment: ${commentId}`);
-
+    logger.info(`Replying to comment ${commentId}`);
     const response = await axios.post(
       `${INSTAGRAM_API}/${commentId}/replies`,
       { message },
@@ -242,28 +195,12 @@ export const replyToComment = async (commentId, message, accessToken) => {
         headers: { "Content-Type": "application/json" },
       },
     );
-
-    logger.info(`Comment reply sent. ID: ${response.data.id || "unknown"}`);
-
-    return {
-      success: true,
-      data: response.data,
-    };
+    logger.info(`Reply sent. ID: ${response.data.id}`);
+    return { success: true, data: response.data };
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.error?.message ||
-      error.response?.data?.error?.error_user_msg ||
-      error.message;
-
-    const errorCode = error.response?.data?.error?.code;
-
-    logger.error(`Reply failed: ${errorMessage} (code: ${errorCode})`);
-
-    return {
-      success: false,
-      error: errorMessage,
-      errorCode,
-    };
+    const errorMessage = error.response?.data?.error?.message || error.message;
+    logger.error(`Reply failed: ${errorMessage}`);
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -271,20 +208,13 @@ export const subscribeWebhook = async (pageId, pageAccessToken) => {
   try {
     const response = await axios.post(
       `${GRAPH_API}/${pageId}/subscribed_apps`,
-      {
-        subscribed_fields: "messages,messaging_postbacks,feed",
-      },
-      {
-        params: { access_token: pageAccessToken },
-      },
+      { subscribed_fields: "messages,messaging_postbacks,feed" },
+      { params: { access_token: pageAccessToken } },
     );
-    logger.info(`Page webhook subscribed for page: ${pageId}`);
+    logger.info(`Page webhook subscribed: ${pageId}`);
     return response.data;
   } catch (error) {
-    logger.error(
-      `Page webhook subscription failed for page ${pageId}`,
-      error.response?.data,
-    );
+    logger.error(`Page webhook failed: ${pageId}`, error.response?.data);
     throw error;
   }
 };
@@ -296,21 +226,13 @@ export const subscribeInstagramWebhook = async (
   try {
     const response = await axios.post(
       `${GRAPH_API}/${igAccountId}/subscribed_apps`,
-      {
-        subscribed_fields:
-          "comments,messages,mentions,message_reactions,messaging_postbacks",
-      },
-      {
-        params: { access_token: pageAccessToken },
-      },
+      { subscribed_fields: "comments,messages,mentions,messaging_postbacks" },
+      { params: { access_token: pageAccessToken } },
     );
-    logger.info(`Instagram webhook subscribed for IG: ${igAccountId}`);
+    logger.info(`IG webhook subscribed: ${igAccountId}`);
     return response.data;
   } catch (error) {
-    logger.error(
-      `Instagram webhook subscription failed for IG ${igAccountId}`,
-      error.response?.data,
-    );
+    logger.error(`IG webhook failed: ${igAccountId}`, error.response?.data);
     throw error;
   }
 };
@@ -333,8 +255,7 @@ export const getDelayMilliseconds = (delayType) => {
     medium: [5000, 15000],
     long: [15000, 30000],
   };
-  const range = ranges[delayType] || ranges.short;
-  const [min, max] = range;
+  const [min, max] = ranges[delayType] || ranges.short;
   if (min === 0 && max === 0) return 0;
   return Math.floor(Math.random() * (max - min + 1)) + min;
 };
@@ -343,34 +264,17 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const pickDMTemplate = (campaign) => {
   const templates = campaign.dmTemplates || [];
-
-  if (templates.length === 0) {
-    return {
-      message: campaign.dmMessage,
-      index: -1,
-    };
-  }
-
-  if (templates.length === 1) {
-    return {
-      message: templates[0].message,
-      index: 0,
-    };
-  }
+  if (templates.length === 0) return { message: campaign.dmMessage, index: -1 };
+  if (templates.length === 1)
+    return { message: templates[0].message, index: 0 };
 
   if (campaign.templateRotation === "sequential") {
     const nextIndex = (campaign.lastTemplateIndex + 1) % templates.length;
-    return {
-      message: templates[nextIndex].message,
-      index: nextIndex,
-    };
+    return { message: templates[nextIndex].message, index: nextIndex };
   }
 
   const randomIndex = Math.floor(Math.random() * templates.length);
-  return {
-    message: templates[randomIndex].message,
-    index: randomIndex,
-  };
+  return { message: templates[randomIndex].message, index: randomIndex };
 };
 
 export const sendDMWithLinkFallback = async ({
@@ -385,99 +289,78 @@ export const sendDMWithLinkFallback = async ({
   const {
     buildMessageWithLink,
     buildFallbackMessage,
-    buildLastResortMessage,
+    buildBioFallbackMessage,
     isLinkBlockedError,
   } = await import("../utils/linkHelper.js");
 
-  const primaryMessage = buildMessageWithLink({
+  const primaryMsg = buildMessageWithLink({
     baseMessage: message,
     link,
     linkDeliveryMode,
   });
 
-  logger.info(
-    `Attempting DM with link mode: ${linkDeliveryMode}, hasLink: ${!!link}`,
-  );
-
-  const firstAttempt = await sendInstagramDM(
+  const attempt1 = await sendInstagramDM(
     igUserId,
     recipientId,
-    primaryMessage,
+    primaryMsg,
     accessToken,
     commentId,
   );
+  if (attempt1.success)
+    return { ...attempt1, linkIncluded: !!link, mode: linkDeliveryMode };
 
-  if (firstAttempt.success) {
-    return { ...firstAttempt, linkIncluded: !!link, mode: linkDeliveryMode };
+  if (
+    !link ||
+    !isLinkBlockedError(
+      attempt1.errorCode,
+      attempt1.errorSubcode,
+      attempt1.error,
+    )
+  ) {
+    return { ...attempt1, linkIncluded: false, mode: linkDeliveryMode };
   }
 
-  const isLinkIssue = isLinkBlockedError(
-    firstAttempt.errorCode,
-    firstAttempt.errorSubcode,
-    firstAttempt.error,
-  );
-
-  if (!isLinkIssue || !link) {
-    return { ...firstAttempt, linkIncluded: false, mode: linkDeliveryMode };
-  }
-
-  logger.warn(
-    `Link blocked. Trying fallback (no_https) for recipient ${recipientId}`,
-  );
-
-  const fallbackMessage = buildFallbackMessage({ baseMessage: message, link });
-
-  const fallbackAttempt = await sendInstagramDM(
+  logger.warn("Link blocked. Trying no_https fallback");
+  const fallbackMsg = buildFallbackMessage({ baseMessage: message, link });
+  const attempt2 = await sendInstagramDM(
     igUserId,
     recipientId,
-    fallbackMessage,
+    fallbackMsg,
     accessToken,
     commentId,
   );
-
-  if (fallbackAttempt.success) {
-    logger.info("Fallback (no_https) sent successfully");
+  if (attempt2.success)
     return {
-      ...fallbackAttempt,
+      ...attempt2,
       linkIncluded: true,
       mode: "fallback_no_https",
       wasBlocked: true,
     };
-  }
 
-  const stillBlocked = isLinkBlockedError(
-    fallbackAttempt.errorCode,
-    fallbackAttempt.errorSubcode,
-    fallbackAttempt.error,
-  );
-
-  if (stillBlocked) {
-    logger.warn("Fallback also blocked. Sending 'check bio' message");
-
-    const lastResort = buildLastResortMessage({ baseMessage: message });
-
-    const lastAttempt = await sendInstagramDM(
+  if (
+    isLinkBlockedError(
+      attempt2.errorCode,
+      attempt2.errorSubcode,
+      attempt2.error,
+    )
+  ) {
+    logger.warn("Still blocked. Sending bio message");
+    const bioMsg = buildBioFallbackMessage({ baseMessage: message });
+    const attempt3 = await sendInstagramDM(
       igUserId,
       recipientId,
-      lastResort,
+      bioMsg,
       accessToken,
       commentId,
     );
-
-    if (lastAttempt.success) {
+    if (attempt3.success)
       return {
-        ...lastAttempt,
+        ...attempt3,
         linkIncluded: false,
         mode: "bio_fallback",
         wasBlocked: true,
       };
-    }
   }
 
-  return {
-    ...fallbackAttempt,
-    linkIncluded: false,
-    mode: "failed",
-    wasBlocked: true,
-  };
+  return { ...attempt2, linkIncluded: false, mode: "failed", wasBlocked: true };
 };
