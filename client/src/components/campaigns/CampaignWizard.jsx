@@ -132,23 +132,6 @@ export default function CampaignWizard({ isOpen, onClose, defaultAccountId }) {
       };
     }
 
-    if (formData.shareTrigger && formData.shareTrigger.enabled) {
-      payload.shareTrigger = {
-        enabled: true,
-        triggerOnDMShare:
-          formData.shareTrigger.triggerOnDMShare === undefined
-            ? true
-            : Boolean(formData.shareTrigger.triggerOnDMShare),
-        triggerOnStoryMention:
-          formData.shareTrigger.triggerOnStoryMention === undefined
-            ? true
-            : Boolean(formData.shareTrigger.triggerOnStoryMention),
-        shareMessage:
-          formData.shareTrigger.shareMessage ||
-          "Thanks for sharing our post! Here is your special resource:",
-      };
-    }
-
     if (formData.rateLimits && formData.rateLimits.enabled) {
       payload.rateLimits = {
         enabled: true,

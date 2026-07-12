@@ -17,7 +17,6 @@ import {
   HiOutlineCalendarDays,
   HiOutlineShieldCheck,
   HiOutlineDocumentDuplicate,
-  HiOutlineShare,
   HiOutlineLink,
   HiOutlineArrowPath,
 } from "react-icons/hi2";
@@ -106,7 +105,6 @@ export default function CampaignCard({ campaign }) {
   const extraCount = keywordsList.length - displayKeywords.length;
 
   const hasFollowFlow = campaign.followFlow?.enabled;
-  const hasShareTrigger = campaign.shareTrigger?.enabled;
   const hasPublicReply = campaign.publicReply?.enabled;
   const hasDelay = campaign.dmDelay && campaign.dmDelay !== "short";
   const hasTemplates = campaign.dmTemplates && campaign.dmTemplates.length > 0;
@@ -161,13 +159,6 @@ export default function CampaignCard({ campaign }) {
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/90 backdrop-blur-md text-[10px] font-jakarta font-bold text-primary-dark uppercase tracking-wider">
                 <HiOutlineSparkles className="w-3 h-3" />
                 Any
-              </span>
-            )}
-
-            {hasShareTrigger && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/90 backdrop-blur-md text-[10px] font-jakarta font-bold text-white uppercase tracking-wider">
-                <HiOutlineShare className="w-3 h-3" />
-                Share
               </span>
             )}
           </div>
@@ -305,7 +296,6 @@ export default function CampaignCard({ campaign }) {
           </div>
 
           {(hasFollowFlow ||
-            hasShareTrigger ||
             hasPublicReply ||
             hasDelay ||
             hasTemplates ||
@@ -322,13 +312,6 @@ export default function CampaignCard({ campaign }) {
                       : "Follow Flow"
                   }
                   color="emerald"
-                />
-              )}
-              {hasShareTrigger && (
-                <FeatureBadge
-                  icon={HiOutlineShare}
-                  label="Share Trigger"
-                  color="purple"
                 />
               )}
               {hasSpecialLinkMode && (
@@ -422,16 +405,6 @@ export default function CampaignCard({ campaign }) {
             />
           </div>
 
-          {campaign.stats?.sharesReceived > 0 && (
-            <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-purple-600 font-jakarta">
-              <HiOutlineShare className="w-3 h-3" />
-              <span className="font-semibold">
-                {campaign.stats.sharesReceived}
-              </span>
-              <span className="text-text-muted">shares detected</span>
-            </div>
-          )}
-
           {campaign.stats?.linkBlocked > 0 && (
             <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-amber-600 font-jakarta">
               <HiOutlineShieldCheck className="w-3 h-3" />
@@ -463,7 +436,6 @@ function FeatureBadge({ icon: Icon, label, color }) {
     emerald: "bg-emerald-50 border-emerald-200 text-emerald-800",
     rose: "bg-rose-50 border-rose-200 text-rose-800",
     slate: "bg-slate-50 border-slate-200 text-slate-800",
-    purple: "bg-purple-50 border-purple-200 text-purple-800",
   };
 
   return (

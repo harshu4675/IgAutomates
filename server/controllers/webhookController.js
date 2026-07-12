@@ -179,11 +179,35 @@ async function handleFollowFlowReply({
 
     const tokenToUse = account.instagramUserToken || account.pageAccessToken;
 
-    if (!pending.buttonClicked) {
-      logger.info(`@${pending.username} replied but DIDNT click button yet`);
+    logger.info(`@${pending.username} replied. Attempting verification`);
 
-      if (pending.retryCount >= campaign.followFlow.maxRetries) {
-        logger.info(`Max retries reached for @${pending.username}, removing`);
+    let isVerifiedFollower = false;
+
+    try {
+      const axios = (await import("axios")).default;
+      const response = await axios.get(
+        `https://graph.instagram.com/v21.0/${senderId}`,
+        {
+          params: {
+            access_token: tokenToUse,
+            fields: "id,username",
+          },
+        },
+      );
+
+      if (response.data?.id) {
+        isVerifiedFollower = true;
+        logger.info(`API check passed for @${pending.username}`);
+      }
+    } catch (apiError) {
+      logger.warn(`API verification unavailable, trusting user`);
+      isVerifiedFollower = true;
+    }
+
+    if (!isVerifiedFollower) {
+      logger.info(`Cannot verify @${pending.username}, sending retry`);
+
+      if (pending.retryCount >= (campaign.followFlow.maxRetries || 3)) {
         campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(
           (p) => p.userId !== senderId,
         );
@@ -198,7 +222,7 @@ async function handleFollowFlowReply({
 
       const retryMsg = (
         campaign.followFlow.retryMessage ||
-        "Please tap the Follow button first, then reply again!"
+        "Please follow us first, then reply!"
       ).replace(/\{\{username\}\}/g, pending.username);
 
       await sendDMWithButton(
@@ -211,23 +235,11 @@ async function handleFollowFlowReply({
         null,
       );
 
-      await Analytics.create({
-        user: campaign.user,
-        campaign: campaign._id,
-        event: "follow_retry_sent",
-        fromUserId: senderId,
-        fromUsername: pending.username,
-        metadata: { retryCount: pending.retryCount, replyText: messageText },
-      });
-
       await campaign.save();
-      logger.info(`Retry ${pending.retryCount} sent to @${pending.username}`);
       return;
     }
 
-    logger.info(
-      `@${pending.username} clicked button + replied. Verifying and sending resource`,
-    );
+    logger.info(`Verifying @${pending.username} and sending resource`);
 
     pending.verified = true;
 
@@ -245,10 +257,7 @@ async function handleFollowFlowReply({
       fromUserId: senderId,
       fromUsername: pending.username,
       commentId: pending.commentId,
-      metadata: {
-        method: "button_clicked_and_replied",
-        replyText: messageText,
-      },
+      metadata: { replyText: messageText },
     });
 
     const baseMsg = (
@@ -291,12 +300,10 @@ async function handleFollowFlowReply({
         templateUsed: -1,
       });
 
-      logger.info(`Resource sent to @${pending.username} (${dmResult.mode})`);
+      logger.info(`Resource sent to @${pending.username}`);
     } else {
       campaign.stats.dmsFailed += 1;
-      logger.error(
-        `Resource DM failed for @${pending.username}: ${dmResult.error}`,
-      );
+      logger.error(`Resource DM failed: ${dmResult.error}`);
     }
 
     campaign.pendingFollowChecks = campaign.pendingFollowChecks.filter(

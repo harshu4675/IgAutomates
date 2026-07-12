@@ -16,7 +16,6 @@ import {
   HiOutlineCalendarDays,
   HiOutlineDocumentDuplicate,
   HiOutlineHandRaised,
-  HiOutlineShare,
   HiOutlineShieldCheck,
   HiPlus,
   HiXMark,
@@ -121,7 +120,6 @@ export default function AutomationSetup({
   const [keywordInput, setKeywordInput] = useState("");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [followFlowOpen, setFollowFlowOpen] = useState(false);
-  const [shareTriggerOpen, setShareTriggerOpen] = useState(false);
   const [linkSettingsOpen, setLinkSettingsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [rateLimitsOpen, setRateLimitsOpen] = useState(false);
@@ -158,13 +156,7 @@ export default function AutomationSetup({
           "Still not following? Tap the button and follow us to unlock the resource!",
         maxRetries: 3,
       },
-      shareTrigger: {
-        enabled: false,
-        triggerOnDMShare: true,
-        triggerOnStoryMention: true,
-        shareMessage:
-          "Thanks for sharing our post! Here is your special resource:",
-      },
+
       publicReply: {
         enabled: false,
         message: "Check your DMs!",
@@ -212,8 +204,7 @@ export default function AutomationSetup({
   const nonFollowerMessage = watch("followFlow.nonFollowerMessage", "");
   const followButtonText = watch("followFlow.followButtonText", "Follow Us");
   const afterFollowMessage = watch("followFlow.afterFollowMessage", "");
-  const shareTriggerEnabled = watch("shareTrigger.enabled", false);
-  const shareMessage = watch("shareTrigger.shareMessage", "");
+
   const isAnyMode = matchType === "any";
 
   useEffect(() => {
@@ -775,113 +766,6 @@ export default function AutomationSetup({
                                   valueAsNumber: true,
                                 })}
                               />
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="border-t border-border-light pt-5">
-              <SectionToggle
-                icon={HiOutlineShare}
-                title="Share Trigger (NEW)"
-                countLabel={shareTriggerEnabled ? "Active" : null}
-                open={shareTriggerOpen}
-                onToggle={() => setShareTriggerOpen(!shareTriggerOpen)}
-                highlight={shareTriggerEnabled}
-              />
-
-              <AnimatePresence>
-                {shareTriggerOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="pt-4 space-y-4">
-                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
-                          {...register("shareTrigger.enabled")}
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-jakarta font-semibold text-primary-darkest">
-                            Enable Share Trigger
-                          </p>
-                          <p className="text-xs text-text-muted font-jakarta">
-                            Send DM when someone shares your post to their DM or
-                            mentions in story
-                          </p>
-                        </div>
-                      </label>
-
-                      <AnimatePresence>
-                        {shareTriggerEnabled && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="space-y-3"
-                          >
-                            <div className="space-y-2">
-                              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-border-light cursor-pointer hover:border-primary-mid transition-all">
-                                <input
-                                  type="checkbox"
-                                  className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
-                                  {...register("shareTrigger.triggerOnDMShare")}
-                                />
-                                <div>
-                                  <p className="text-xs font-jakarta font-semibold text-primary-darkest">
-                                    DM Shares
-                                  </p>
-                                  <p className="text-[10px] text-text-muted font-jakarta">
-                                    When user shares post to their DM with you
-                                  </p>
-                                </div>
-                              </label>
-
-                              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-border-light cursor-pointer hover:border-primary-mid transition-all">
-                                <input
-                                  type="checkbox"
-                                  className="w-4 h-4 rounded border-border-light text-primary-mid focus:ring-primary-mid"
-                                  {...register(
-                                    "shareTrigger.triggerOnStoryMention",
-                                  )}
-                                />
-                                <div>
-                                  <p className="text-xs font-jakarta font-semibold text-primary-darkest">
-                                    Story Mentions
-                                  </p>
-                                  <p className="text-[10px] text-text-muted font-jakarta">
-                                    When user mentions you in their story
-                                  </p>
-                                </div>
-                              </label>
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-purple-50 border border-purple-200">
-                              <p className="text-xs font-jakarta font-bold text-purple-800 mb-2">
-                                Share Trigger Message
-                              </p>
-                              <textarea
-                                rows={3}
-                                className="w-full px-3 py-2 rounded-lg bg-white border border-purple-200 text-xs font-jakarta text-primary-darkest focus:outline-none focus:border-purple-400 transition-all resize-none"
-                                placeholder="Thanks for sharing! Here is your gift..."
-                                {...register("shareTrigger.shareMessage")}
-                              />
-                              <p className="mt-1 text-[10px] text-purple-700 font-jakarta">
-                                {shareMessage?.length || 0}/1000
-                              </p>
-                              <p className="mt-2 text-[10px] text-purple-600 font-jakarta italic">
-                                Note: If Follow Flow is enabled, share triggers
-                                will use follow flow messages instead
-                              </p>
                             </div>
                           </motion.div>
                         )}
