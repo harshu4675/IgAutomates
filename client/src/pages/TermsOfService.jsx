@@ -8,7 +8,7 @@ export default function TermsOfService() {
   return (
     <>
       <Helmet>
-        <title>Terms of Service | InstaFlow</title>
+        <title>Terms of Service | IGAutomates</title>
       </Helmet>
 
       <div className="min-h-screen bg-white">
@@ -40,7 +40,7 @@ export default function TermsOfService() {
                 1. Acceptance of Terms
               </h2>
               <p className="text-sm leading-relaxed">
-                By accessing and using InstaFlow, you accept and agree to be
+                By accessing and using IGAutomates, you accept and agree to be
                 bound by the terms and provisions of this agreement. If you do
                 not agree to these terms, please do not use our service.
               </p>
@@ -51,7 +51,7 @@ export default function TermsOfService() {
                 2. Service Description
               </h2>
               <p className="text-sm leading-relaxed">
-                InstaFlow is an Instagram DM automation service that allows
+                IGAutomates is an Instagram DM automation service that allows
                 users to automatically send direct messages when specific
                 keywords are used in comments on their Instagram Business posts.
               </p>
@@ -80,7 +80,7 @@ export default function TermsOfService() {
                 4. Prohibited Uses
               </h2>
               <p className="text-sm leading-relaxed mb-2">
-                You may not use InstaFlow to:
+                You may not use IGAutomates to:
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm">
                 <li>Send spam or unwanted commercial messages</li>
@@ -108,10 +108,10 @@ export default function TermsOfService() {
                 6. Instagram Platform Compliance
               </h2>
               <p className="text-sm leading-relaxed">
-                InstaFlow operates within Instagram&apos;s API terms of service.
-                Instagram may change its API or policies at any time, which
-                could affect our service functionality. We are not responsible
-                for changes made by Instagram/Meta.
+                IGAutomates operates within Instagram&apos;s API terms of
+                service. Instagram may change its API or policies at any time,
+                which could affect our service functionality. We are not
+                responsible for changes made by Instagram/Meta.
               </p>
             </section>
 
@@ -131,7 +131,7 @@ export default function TermsOfService() {
                 8. Limitation of Liability
               </h2>
               <p className="text-sm leading-relaxed">
-                InstaFlow is provided &quot;as is&quot; without warranties of
+                IGAutomates is provided &quot;as is&quot; without warranties of
                 any kind. We are not liable for any indirect, incidental, or
                 consequential damages arising from your use of the service,
                 including but not limited to account bans from Instagram due to
@@ -144,8 +144,9 @@ export default function TermsOfService() {
                 9. Free Service
               </h2>
               <p className="text-sm leading-relaxed">
-                InstaFlow is currently offered as a free service. We reserve the
-                right to introduce paid plans in the future with prior notice.
+                IGAutomates is currently offered as a free service. We reserve
+                the right to introduce paid plans in the future with prior
+                notice.
               </p>
             </section>
 
@@ -176,7 +177,7 @@ export default function TermsOfService() {
 
           <div className="mt-12 pt-8 border-t border-border-light text-center">
             <p className="text-xs text-text-muted font-jakarta">
-              © {new Date().getFullYear()} InstaFlow. All rights reserved.
+              © 2026 IGAutomates. All rights reserved.
             </p>
             <div className="mt-3 flex items-center justify-center gap-4">
               <Link

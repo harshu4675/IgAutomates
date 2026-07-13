@@ -16,7 +16,6 @@ import DashboardNav from "@/components/dashboard/DashboardNav";
 import InstagramConnectCard from "@/components/dashboard/InstagramConnectCard";
 import InstagramAccountCard from "@/components/dashboard/InstagramAccountCard";
 import StatCard from "@/components/analytics/StatCard";
-import AreaChart from "@/components/analytics/AreaChart";
 import ActivityFeed from "@/components/analytics/ActivityFeed";
 import Button from "@/components/common/Button";
 import Loader from "@/components/common/Loader";
@@ -70,7 +69,7 @@ export default function Dashboard() {
   return (
     <>
       <Helmet>
-        <title>Dashboard | InstaFlow</title>
+        <title>Dashboard | IGAutomates</title>
       </Helmet>
 
       <div className="min-h-screen bg-surface-cream">
@@ -164,12 +163,6 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <AreaChart
-                      data={analytics.dailyStats.slice(-7)}
-                      dataKey="dmsSent"
-                      color="#052659"
-                      height={180}
-                    />
                   </div>
 
                   <div className="bg-white rounded-2xl border border-border-light shadow-card p-5">
@@ -183,12 +176,6 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <AreaChart
-                      data={analytics.dailyStats.slice(-7)}
-                      dataKey="keywordsMatched"
-                      color="#F59E0B"
-                      height={180}
-                    />
                   </div>
                 </motion.div>
               )}
@@ -235,31 +222,6 @@ export default function Dashboard() {
                   </div>
 
                   <ActivityFeed />
-                </motion.div>
-              )}
-
-              {!hasCampaigns && (
-                <motion.div
-                  variants={fadeInUp}
-                  className="bg-white rounded-3xl border border-border-light shadow-card p-8 text-center"
-                >
-                  <div className="w-16 h-16 rounded-2xl bg-primary-lightest/40 flex items-center justify-center mx-auto mb-4">
-                    <HiOutlineRocketLaunch className="w-8 h-8 text-primary-mid" />
-                  </div>
-                  <h3 className="text-lg font-manrope font-bold text-primary-darkest mb-2">
-                    Create Your First Campaign
-                  </h3>
-                  <p className="text-sm text-text-muted font-jakarta mb-6 max-w-md mx-auto">
-                    Set up automation for your Instagram posts. Choose a keyword
-                    and let InstaFlow send DMs automatically.
-                  </p>
-                  <Button
-                    variant="primary"
-                    onClick={() => navigate("/campaigns")}
-                    icon={<HiOutlineArrowRight />}
-                  >
-                    Create Campaign
-                  </Button>
                 </motion.div>
               )}
 

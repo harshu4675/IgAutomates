@@ -1,30 +1,62 @@
-node_modules/
-dist/
-build/
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.production
+# ─────────────────────────────────────────
+# OS Generated Files
+# ─────────────────────────────────────────
 .DS_Store
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ─────────────────────────────────────────
+# IDE / Editor
+# ─────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
-.pnp.*
-.yarn/
+*.sublime-project
+*.sublime-workspace
+.history/
+.vs/
+
+# ─────────────────────────────────────────
+# Logs
+# ─────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ─────────────────────────────────────────
+# Environment Variables (root-level safety net)
+# ─────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─────────────────────────────────────────
+# Dependencies (safety net)
+# ─────────────────────────────────────────
+node_modules/
+
+# ─────────────────────────────────────────
+# Testing / Coverage
+# ─────────────────────────────────────────
 coverage/
+*.lcov
 .nyc_output/
+
+# ─────────────────────────────────────────
+# Misc
+# ─────────────────────────────────────────
+*.pem
+*.key
 .cache/
-.parcel-cache/
-.next/
-.nuxt/
-.vuepress/dist
-.serverless/
-.fusebox/
-.dynamodb/
+tmp/
+temp/

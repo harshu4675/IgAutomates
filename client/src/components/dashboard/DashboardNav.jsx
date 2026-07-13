@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { HiOutlineBell } from "react-icons/hi2";
 import useAuthStore from "@/store/useAuthStore";
 import useUIStore from "@/store/useUIStore";
 import Avatar from "@/components/common/Avatar";
@@ -34,13 +33,6 @@ export default function DashboardNav({
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-primary-lightest/30 transition-colors relative"
-            aria-label="Notifications"
-          >
-            <HiOutlineBell className="w-5 h-5 text-text-muted" />
-          </button>
-
           {actionLabel && onAction && (
             <Button
               variant="primary"

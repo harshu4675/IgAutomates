@@ -93,7 +93,7 @@ export default function Campaigns() {
   return (
     <>
       <Helmet>
-        <title>Campaigns | InstaFlow</title>
+        <title>Campaigns | IGAutomates</title>
       </Helmet>
 
       <div className="min-h-screen bg-surface-cream">

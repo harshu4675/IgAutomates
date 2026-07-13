@@ -8,10 +8,10 @@ export default function PrivacyPolicy() {
   return (
     <>
       <Helmet>
-        <title>Privacy Policy | InstaFlow</title>
+        <title>Privacy Policy | IGAutomates</title>
         <meta
           name="description"
-          content="InstaFlow Privacy Policy - How we collect, use, and protect your data"
+          content="IGAutomates Privacy Policy - How we collect, use, and protect your data"
         />
       </Helmet>
 
@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
                 1. Introduction
               </h2>
               <p className="text-sm leading-relaxed">
-                Welcome to InstaFlow (&quot;we,&quot; &quot;our,&quot; or
+                Welcome to IGAutomates (&quot;we,&quot; &quot;our,&quot; or
                 &quot;us&quot;). This Privacy Policy explains how we collect,
                 use, disclose, and safeguard your information when you use our
                 Instagram DM automation service. Please read this privacy policy
@@ -116,7 +116,7 @@ export default function PrivacyPolicy() {
                 4. Instagram Platform Compliance
               </h2>
               <p className="text-sm leading-relaxed">
-                InstaFlow uses the official Instagram Graph API and complies
+                IGAutomates uses the official Instagram Graph API and complies
                 with all Instagram Platform Policies. We do not:
               </p>
               <ul className="list-disc list-inside space-y-1 text-sm mt-2">
@@ -213,8 +213,8 @@ export default function PrivacyPolicy() {
                 10. Children&apos;s Privacy
               </h2>
               <p className="text-sm leading-relaxed">
-                InstaFlow is not intended for users under 13 years of age. We do
-                not knowingly collect data from children under 13.
+                IGAutomates is not intended for users under 13 years of age. We
+                do not knowingly collect data from children under 13.
               </p>
             </section>
 
@@ -283,7 +283,7 @@ export default function PrivacyPolicy() {
                 To request deletion of your data:
               </p>
               <ol className="list-decimal list-inside space-y-1 text-sm">
-                <li>Log in to your InstaFlow account</li>
+                <li>Log in to your IGAutomates account</li>
                 <li>Go to Settings</li>
                 <li>
                   Click &quot;Delete Account&quot; (or email us at
@@ -296,7 +296,7 @@ export default function PrivacyPolicy() {
 
           <div className="mt-12 pt-8 border-t border-border-light text-center">
             <p className="text-xs text-text-muted font-jakarta">
-              © {new Date().getFullYear()} InstaFlow. All rights reserved.
+              © 2026 IGAutomates. All rights reserved.
             </p>
             <div className="mt-3 flex items-center justify-center gap-4">
               <Link

@@ -8,7 +8,7 @@ export default function NotFound() {
   return (
     <>
       <Helmet>
-        <title>404 | InstaFlow</title>
+        <title>404 | IGAutomates</title>
       </Helmet>
       <div className="min-h-screen flex items-center justify-center bg-surface-cream">
         <motion.div

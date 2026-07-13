@@ -3,14 +3,10 @@ import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import {
   HiOutlineChatBubbleLeftRight,
-  HiOutlineBolt,
   HiOutlinePaperAirplane,
-  HiOutlineCheckCircle,
-  HiOutlineChartBarSquare,
   HiOutlineRocketLaunch,
+  HiOutlineChartBarSquare,
   HiOutlineArrowDownTray,
-  HiOutlineUserPlus,
-  HiOutlineChatBubbleBottomCenterText,
 } from "react-icons/hi2";
 import Sidebar from "@/components/dashboard/Sidebar";
 import DashboardNav from "@/components/dashboard/DashboardNav";
@@ -70,7 +66,7 @@ export default function Analytics() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `instaflow-analytics-${new Date().toISOString().split("T")[0]}.csv`;
+      link.download = `igautomates-analytics-${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -92,37 +88,10 @@ export default function Analytics() {
       gradient: "from-blue-500 to-blue-600",
     },
     {
-      icon: HiOutlineBolt,
-      label: "Matches",
-      value: overview?.totalMatches || 0,
-      gradient: "from-amber-500 to-orange-500",
-      subValue: overview?.matchRate ? `${overview.matchRate}%` : null,
-    },
-    {
       icon: HiOutlinePaperAirplane,
       label: "DMs Sent",
       value: overview?.totalDMs || 0,
       gradient: "from-primary-mid to-primary-dark",
-    },
-    {
-      icon: HiOutlineCheckCircle,
-      label: "Delivery",
-      value: overview?.deliveryRate || 0,
-      suffix: "%",
-      gradient: "from-emerald-500 to-emerald-600",
-    },
-    {
-      icon: HiOutlineUserPlus,
-      label: "Follow Conv.",
-      value: overview?.followConversionRate || 0,
-      suffix: "%",
-      gradient: "from-violet-500 to-violet-600",
-    },
-    {
-      icon: HiOutlineChatBubbleBottomCenterText,
-      label: "Public Replies",
-      value: overview?.totalPublicReplies || 0,
-      gradient: "from-sky-500 to-sky-600",
     },
     {
       icon: HiOutlineRocketLaunch,
@@ -152,7 +121,7 @@ export default function Analytics() {
   return (
     <>
       <Helmet>
-        <title>Analytics | InstaFlow</title>
+        <title>Analytics | IGAutomates</title>
       </Helmet>
 
       <div className="min-h-screen bg-surface-cream">
@@ -202,7 +171,7 @@ export default function Analytics() {
 
             <motion.div
               variants={fadeInUp}
-              className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4 mb-6"
+              className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
             >
               {stats.map((stat) => (
                 <StatCard key={stat.label} {...stat} />

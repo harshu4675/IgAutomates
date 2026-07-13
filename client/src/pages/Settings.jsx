@@ -32,7 +32,7 @@ export default function Settings() {
   return (
     <>
       <Helmet>
-        <title>Settings | InstaFlow</title>
+        <title>Settings | IGAutomates</title>
       </Helmet>
 
       <div className="min-h-screen bg-surface-cream">

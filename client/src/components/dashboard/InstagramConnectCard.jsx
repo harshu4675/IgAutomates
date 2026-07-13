@@ -41,7 +41,7 @@ export default function InstagramConnectCard() {
         </h2>
         <p className="text-sm md:text-base text-text-muted font-jakarta leading-relaxed mb-8 max-w-lg mx-auto">
           Link your Instagram Business account to start automating DMs. You will
-          be redirected to Facebook to authorize InstaFlow.
+          be redirected to Facebook to authorize IGAutomates.
         </p>
 
         <Button

@@ -29,7 +29,7 @@ const Button = forwardRef(function Button(
   const sizes = {
     small: "px-5 py-2.5 text-sm rounded-xl",
     default: "px-8 py-3.5 text-sm rounded-2xl",
-    large: "px-10 py-4.5 text-base rounded-2xl",
+    large: "px-10 py-4 text-base rounded-2xl",
   };
 
   return (
@@ -50,7 +50,14 @@ const Button = forwardRef(function Button(
       {...props}
     >
       {loading && (
-        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+        <svg
+          className="h-4 w-4 shrink-0"
+          viewBox="0 0 24 24"
+          fill="none"
+          style={{
+            animation: "buttonSpin 0.75s linear infinite",
+          }}
+        >
           <circle
             className="opacity-25"
             cx="12"

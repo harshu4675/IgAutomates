@@ -227,6 +227,16 @@
   }
 }
 
+/* ── Button spinner keyframe (inline style, bypasses reduced-motion) ── */
+@keyframes buttonSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -239,6 +249,12 @@
 
   html {
     scroll-behavior: auto;
+  }
+
+  /* Keep button spinner always spinning regardless of reduced motion */
+  svg[style*="buttonSpin"] {
+    animation-duration: 0.75s !important;
+    animation-iteration-count: infinite !important;
   }
 }
 

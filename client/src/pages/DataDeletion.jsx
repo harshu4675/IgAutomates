@@ -111,7 +111,7 @@ export default function DataDeletion() {
 
           <div className="mt-12 pt-8 border-t border-border-light text-center">
             <p className="text-xs text-text-muted font-jakarta">
-              © {new Date().getFullYear()} InstaFlow. All rights reserved.
+              © 2026 IGAutomates. All rights reserved.
             </p>
           </div>
         </main>

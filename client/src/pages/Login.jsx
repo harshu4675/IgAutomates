@@ -72,7 +72,7 @@ export default function Login() {
   return (
     <>
       <Helmet>
-        <title>{isRegister ? "Create Account" : "Login"} | InstaFlow</title>
+        <title>{isRegister ? "Create Account" : "Login"} | IGAutomates</title>
       </Helmet>
 
       <div className="min-h-screen flex relative overflow-hidden">
@@ -97,7 +97,7 @@ export default function Login() {
             </h2>
             <p className="text-base text-white/50 font-jakarta leading-relaxed mb-8">
               Connect your Instagram Business account, select posts, set
-              keywords, and let InstaFlow automatically send DMs when users
+              keywords, and let IGAutomates automatically send DMs when users
               comment.
             </p>
 
@@ -246,7 +246,7 @@ export default function Login() {
                         className="mt-0.5 w-4 h-4 rounded border-border-light text-primary-dark focus:ring-2 focus:ring-primary-mid/20 cursor-pointer"
                       />
                       <span className="text-xs font-jakarta text-text-primary leading-relaxed">
-                        I agree to InstaFlow&apos;s{" "}
+                        I agree to IGAutomates&apos;s{" "}
                         <Link
                           to="/terms"
                           target="_blank"
@@ -328,7 +328,7 @@ export default function Login() {
               </div>
 
               <p className="mt-4 text-center text-[10px] text-text-muted/60 font-jakarta">
-                © {new Date().getFullYear()} InstaFlow. All rights reserved.
+                © 2026 IGAutomates. All rights reserved.
               </p>
             </motion.div>
           </motion.div>

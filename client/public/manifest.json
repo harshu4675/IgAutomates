@@ -1,6 +1,6 @@
 {
-  "name": "InstaFlow - Instagram DM Automation",
-  "short_name": "InstaFlow",
+  "name": "IGAutomates - Instagram DM Automation",
+  "short_name": "IGAutomates",
   "description": "Automate Instagram DMs with keyword-triggered automation",
   "start_url": "/",
   "display": "standalone",

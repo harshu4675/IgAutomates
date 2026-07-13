@@ -14,7 +14,7 @@ export default function Logo({ variant = "dark", size = "default" }) {
   };
 
   return (
-    <Link to="/" aria-label="InstaFlow Home">
+    <Link to="/" aria-label="IGAutomates Home">
       <motion.div
         className="flex items-center gap-2.5"
         whileHover={{ scale: 1.02 }}
